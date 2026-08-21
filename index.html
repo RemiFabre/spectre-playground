@@ -215,6 +215,9 @@
   </div>
   <div id="s-status"></div>
   <button id="s-browse">browse the public gallery</button>
+  <div class="pub-row" id="s-search-row" style="display:none">
+    <input id="s-search" type="text" placeholder="search shapes" spellcheck="false">
+  </div>
   <div id="s-list"></div>
 </div>
 
@@ -1169,6 +1172,21 @@
     btn.disabled = false;
   };
   $("s-browse").onclick = () => loadGallery();
+  let galleryNames = [];
+  $("s-search").oninput = () => renderGallery();
+  function renderGallery() {
+    const list = $("s-list");
+    const q = $("s-search").value.trim().toLowerCase();
+    const names = galleryNames.filter((n) => n.includes(q));
+    list.textContent = "";
+    if (!names.length) { list.textContent = q ? "no shape matches “" + q + "”" : "no shapes published yet. be the first"; return; }
+    for (const n of names) {
+      const b = document.createElement("button");
+      b.textContent = n;
+      b.onclick = () => pickShape(b, n);
+      list.appendChild(b);
+    }
+  }
   async function loadGallery() {
     const list = $("s-list");
     list.classList.add("open");
@@ -1177,33 +1195,28 @@
       const r = await fetch("https://huggingface.co/api/datasets/" + DATASET + "/tree/main/shapes");
       if (r.status === 404) { list.textContent = "no shapes published yet. be the first"; return; }
       const files = await r.json();
-      const names = files.map((f) => (/^shapes\/(.+)\.json$/.exec(f.path) || [])[1]).filter(Boolean).sort();
-      list.textContent = "";
-      if (!names.length) { list.textContent = "no shapes published yet. be the first"; return; }
-      for (const n of names) {
-        const b = document.createElement("button");
-        b.textContent = n;
-        b.onclick = async () => {
-          if (b.dataset.armed !== "1") {
-            for (const o of list.children) { o.dataset.armed = ""; o.textContent = o.dataset.name || o.textContent; }
-            b.dataset.name = n; b.dataset.armed = "1"; b.textContent = n + ": load? (replaces your board)";
-            return;
-          }
-          try {
-            const rr = await fetch("https://huggingface.co/datasets/" + DATASET + "/resolve/main/shapes/" + n + ".json");
-            const d = await rr.json();
-            state.tiles.length = 0; state.undo.length = 0; pulses.length = 0;
-            for (const [k, x, y, fill] of d.board.t) addTileRaw({ k, x: x / 1000, y: y / 1000, fill });
-            if (["prisma", "color", "white"].includes(d.board.p)) state.palette = d.board.p;
-            state.embeddings = state.tiles.length ? S.computeEmbeddings(INDEX, plainTiles()) : null;
-            refresh(); centerView(); syncBar(); closePopovers();
-            setHint("loaded “" + n + "”. press ▶ to watch it being built", 5000);
-          } catch (err) { sStatus.textContent = "could not load that shape"; }
-        };
-        list.appendChild(b);
-      }
+      galleryNames = files.map((f) => (/^shapes\/(.+)\.json$/.exec(f.path) || [])[1]).filter(Boolean).sort();
+      $("s-search-row").style.display = galleryNames.length > 5 ? "flex" : "none";
+      renderGallery();
     } catch (err) { list.textContent = "could not reach the gallery"; }
-  };
+  }
+  async function pickShape(b, n) {
+    if (b.dataset.armed !== "1") {
+      for (const o of $("s-list").children) { o.dataset.armed = ""; o.textContent = o.dataset.name || o.textContent; }
+      b.dataset.name = n; b.dataset.armed = "1"; b.textContent = n + ": load? (replaces your board)";
+      return;
+    }
+    try {
+      const rr = await fetch("https://huggingface.co/datasets/" + DATASET + "/resolve/main/shapes/" + n + ".json");
+      const d = await rr.json();
+      state.tiles.length = 0; state.undo.length = 0; pulses.length = 0;
+      for (const [k, x, y, fill] of d.board.t) addTileRaw({ k, x: x / 1000, y: y / 1000, fill });
+      if (["prisma", "color", "white"].includes(d.board.p)) state.palette = d.board.p;
+      state.embeddings = state.tiles.length ? S.computeEmbeddings(INDEX, plainTiles()) : null;
+      refresh(); centerView(); syncBar(); closePopovers();
+      setHint("loaded “" + n + "”. press ▶ to watch it being built", 5000);
+    } catch (err) { sStatus.textContent = "could not load that shape"; }
+  }
 
   let clearArm = 0;
   $("b-clear").onclick = () => {
