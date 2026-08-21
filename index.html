@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>the Spectre — aperiodic monotile playground</title>
+<meta name="description" content="Tile the Spectre, the aperiodic monotile, one piece at a time. Guided placements obey the real matching rule; watch which choices remain.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #12151f;
+    --ink-2: #0d0f17;
+    --fog: #9aa0b4;
+    --bone: #f2efe7;
+    --hairline: rgba(255, 255, 255, 0.09);
+    --glass: rgba(15, 17, 26, 0.72);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    background: var(--ink);
+    color: var(--bone);
+    font-family: "Spline Sans Mono", ui-monospace, monospace;
+    -webkit-user-select: none; user-select: none;
+  }
+  #board { position: fixed; inset: 0; display: block; touch-action: none; cursor: crosshair; }
+  body.erasing #board { cursor: pointer; }
+  #vignette {
+    position: fixed; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse 120% 90% at 50% 40%, transparent 55%, rgba(5, 6, 10, 0.55) 100%);
+  }
+
+  /* wordmark */
+  #mark { position: fixed; top: 20px; left: 24px; pointer-events: none; }
+  #mark h1 {
+    font-family: "Instrument Serif", serif; font-style: italic; font-weight: 400;
+    font-size: 30px; letter-spacing: 0.01em; color: var(--bone); line-height: 1;
+  }
+  #mark p {
+    margin-top: 7px; font-size: 10.5px; letter-spacing: 0.14em; color: var(--fog);
+  }
+
+  /* hint */
+  #hint {
+    position: fixed; bottom: 74px; left: 50%; transform: translateX(-50%);
+    font-size: 11px; letter-spacing: 0.1em; color: var(--fog);
+    transition: opacity 0.8s; pointer-events: none; white-space: nowrap;
+  }
+  #hint.gone { opacity: 0; }
+
+  /* toolbar */
+  #bar {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 4px;
+    background: var(--glass); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--hairline); border-radius: 999px;
+    padding: 5px 8px; max-width: calc(100vw - 16px); flex-wrap: wrap; justify-content: center;
+  }
+  #bar .sep { width: 1px; height: 18px; background: var(--hairline); margin: 0 3px; }
+  #bar button {
+    appearance: none; border: 0; background: transparent; color: var(--fog);
+    font: 500 11px/1 "Spline Sans Mono", monospace; letter-spacing: 0.08em;
+    padding: 7px 10px; border-radius: 999px; cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+  }
+  #bar button:hover { color: var(--bone); }
+  #bar button.on { color: #fff; background: rgba(255, 255, 255, 0.1); }
+  #bar button:focus-visible { outline: 1px solid rgba(255,255,255,0.6); outline-offset: 2px; }
+  #bar button.danger:hover { color: #ff9d9d; }
+
+  /* help overlay */
+  #help {
+    position: fixed; inset: 0; display: none; z-index: 10;
+    background: rgba(8, 10, 16, 0.78); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    align-items: center; justify-content: center; padding: 20px; cursor: pointer;
+  }
+  #help.open { display: flex; }
+  #help .card {
+    background: #171a26; border: 1px solid var(--hairline); border-radius: 14px;
+    max-width: 430px; padding: 28px 30px; cursor: default;
+  }
+  #help h2 { font-family: "Instrument Serif", serif; font-style: italic; font-weight: 400; font-size: 26px; margin-bottom: 10px; }
+  #help p.lead { font-size: 11.5px; line-height: 1.65; color: var(--fog); margin-bottom: 16px; }
+  #help p.lead a { color: var(--bone); }
+  #help table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  #help td { padding: 4.5px 0; vertical-align: top; }
+  #help td:first-child { color: var(--bone); white-space: nowrap; padding-right: 18px; }
+  #help td:last-child { color: var(--fog); line-height: 1.5; }
+  #help .close { margin-top: 18px; font-size: 10.5px; letter-spacing: 0.12em; color: var(--fog); }
+
+  @media (max-width: 640px) {
+    #mark h1 { font-size: 24px; }
+    #mark p { font-size: 9.5px; }
+    #bar { gap: 2px; }
+    #bar button { padding: 7px 8px; font-size: 10.5px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #hint { transition: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="board"></canvas>
+<div id="vignette"></div>
+
+<div id="mark">
+  <h1>the Spectre</h1>
+  <p id="sub">an aperiodic monotile &middot; n = 1</p>
+</div>
+
+<div id="hint">move near an edge — click when the ghost snaps &middot; right-drag rotates</div>
+
+<div id="bar">
+  <button id="b-guided" class="on" title="only placements allowed by the matching rule">guided</button>
+  <button id="b-free" title="stamp anywhere, no rules">free</button>
+  <span class="sep"></span>
+  <button id="b-add" class="on" title="click to place tiles">add</button>
+  <button id="b-erase" title="click tiles to remove them">erase</button>
+  <span class="sep"></span>
+  <button id="b-color" class="on" title="colors follow orientation, and slowly drift">color</button>
+  <button id="b-white" title="plain porcelain tiles">white</button>
+  <span class="sep"></span>
+  <button id="b-rot" title="rotate the held piece (or right-drag, or R)">&#10227;</button>
+  <button id="b-undo" title="undo (Cmd/Ctrl+Z)">undo</button>
+  <button id="b-clear" class="danger" title="start over">clear</button>
+  <button id="b-help" title="about &amp; controls">?</button>
+</div>
+
+<div id="help">
+  <div class="card">
+    <h2>the Spectre</h2>
+    <p class="lead">
+      In 2023 a single 13-sided shape was found that tiles the plane — but only aperiodically:
+      the pattern never repeats. This is its equilateral form, with curved edges so that a bump
+      only ever nests into a dent. That is the whole matching rule, and it is why some
+      placements that look fine will still paint you into a corner.
+      <a href="https://arxiv.org/abs/2305.17743" target="_blank" rel="noopener">Smith, Myers, Kaplan &amp; Goodman-Strauss →</a>
+    </p>
+    <table>
+      <tr><td>place</td><td>move the ghost near an edge; it snaps to valid spots — click to commit</td></tr>
+      <tr><td>rotate</td><td>right-drag, quick right-click, R, or the &#10227; button</td></tr>
+      <tr><td>erase</td><td>switch to erase, then click tiles</td></tr>
+      <tr><td>pan / zoom</td><td>drag / scroll (pinch on trackpad)</td></tr>
+      <tr><td>undo</td><td>Cmd/Ctrl+Z</td></tr>
+      <tr><td>guided</td><td>shows every placement the matching rule allows near your cursor</td></tr>
+      <tr><td>free</td><td>no rules, no collisions — stamp and overlap at will</td></tr>
+    </table>
+    <p class="close">click anywhere to close</p>
+  </div>
+</div>
+
+<script src="spectre.js"></script>
+<script>
+(function () {
+  "use strict";
+  const S = window.SpectreCore;
+  const TAU = Math.PI * 2;
+  const canvas = document.getElementById("board");
+  const ctx = canvas.getContext("2d");
+  const subEl = document.getElementById("sub");
+  const hintEl = document.getElementById("hint");
+  const helpEl = document.getElementById("help");
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ---- state ----------------------------------------------------------------
+  const state = {
+    tiles: [],            // {k, x, y, verts, path, born}
+    candidates: [],
+    mode: "guided",       // guided | free
+    tool: "add",          // add | erase
+    palette: "color",     // color | white
+    view: { scale: 78, ox: 0, oy: 0 },
+    undo: [],
+    placedEver: 0,
+  };
+  const ghost = {
+    sx: innerWidth / 2, sy: innerHeight / 2, // last screen pos of pointer
+    x: 0, y: 0,                              // animated world pos (tile origin)
+    angle: 0,                                // animated angle (rad)
+    manualAngle: 0,
+    snapped: null,                           // candidate object or null
+    visible: false,
+  };
+  const pulses = []; // {x, y, t0}
+  let eraseHover = -1;
+  let dirtySave = false;
+
+  const SNAP_R = 1.35;   // world units, cursor->candidate centroid
+  const SHOW_R = 2.1;    // show candidate outlines within this radius
+
+  // ---- persistence ----------------------------------------------------------
+  function save() {
+    try {
+      localStorage.setItem("spectre-v1", JSON.stringify({
+        tiles: state.tiles.map((t) => [t.k, t.x, t.y]),
+        mode: state.mode, palette: state.palette, view: state.view,
+        placedEver: state.placedEver,
+      }));
+    } catch (e) {}
+  }
+  function load() {
+    try {
+      const d = JSON.parse(localStorage.getItem("spectre-v1"));
+      if (d && Array.isArray(d.tiles) && d.tiles.length) {
+        for (const [k, x, y] of d.tiles) addTileRaw({ k, x, y });
+        state.mode = d.mode === "free" ? "free" : "guided";
+        state.palette = d.palette === "white" ? "white" : "color";
+        state.placedEver = d.placedEver || d.tiles.length;
+        if (d.view && d.view.scale) state.view = d.view;
+        return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  // ---- tiles ----------------------------------------------------------------
+  function buildTile(t) {
+    t.verts = S.tileVerts(t);
+    const segs = S.curvedPath(t.verts);
+    const p = new Path2D();
+    p.moveTo(segs[0].x0, segs[0].y0);
+    for (const g of segs) p.bezierCurveTo(g.c1x, g.c1y, g.c2x, g.c2y, g.x1, g.y1);
+    p.closePath();
+    t.path = p;
+    return t;
+  }
+  function addTileRaw(t) { state.tiles.push(buildTile({ k: t.k, x: t.x, y: t.y, born: 0 })); }
+
+  function commitTile(cand) {
+    const t = buildTile({ k: cand.k, x: cand.x, y: cand.y, born: performance.now() });
+    state.tiles.push(t);
+    state.undo.push({ type: "add" });
+    state.placedEver++;
+    const c = S.tileCentroid(t);
+    pulses.push({ x: c[0], y: c[1], t0: performance.now() });
+    refresh();
+  }
+  function removeTileAt(i) {
+    const [t] = state.tiles.splice(i, 1);
+    state.undo.push({ type: "remove", tile: { k: t.k, x: t.x, y: t.y }, index: i });
+    refresh();
+  }
+  function refresh() {
+    state.candidates = state.mode === "guided" && state.tiles.length
+      ? S.generateCandidates(state.tiles.map((t) => ({ k: t.k, x: t.x, y: t.y })))
+      : [];
+    subEl.textContent = "an aperiodic monotile · n = " + state.tiles.length;
+    if (state.placedEver >= 4) hintEl.classList.add("gone");
+    dirtySave = true;
+  }
+
+  // ---- view transforms ------------------------------------------------------
+  function toWorld(sx, sy) {
+    return [(sx - state.view.ox) / state.view.scale, (sy - state.view.oy) / state.view.scale];
+  }
+  function centerView() {
+    if (!state.tiles.length) { state.view.ox = innerWidth / 2; state.view.oy = innerHeight / 2; return; }
+    let x = 0, y = 0;
+    for (const t of state.tiles) { const c = S.tileCentroid(t); x += c[0]; y += c[1]; }
+    x /= state.tiles.length; y /= state.tiles.length;
+    state.view.ox = innerWidth / 2 - x * state.view.scale;
+    state.view.oy = innerHeight / 2 - y * state.view.scale;
+  }
+
+  // ---- colors ---------------------------------------------------------------
+  function hash01(x, y) {
+    const h = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+    return h - Math.floor(h);
+  }
+  function tileFill(t, now) {
+    if (state.palette === "white") {
+      const v = 94 + hash01(t.x, t.y) * 3;
+      return "hsl(45, 14%, " + v + "%)";
+    }
+    const drift = reduceMotion ? 0 : (now / 1000) * 3; // 3 deg/s
+    const hue = (t.k * 30 + drift + hash01(t.x, t.y) * 10) % 360;
+    const l = 58 + hash01(t.y, t.x) * 8;
+    return "hsl(" + hue + ", 58%, " + l + "%)";
+  }
+  function ghostFill(k, now) {
+    if (state.palette === "white") return "rgba(245, 243, 236, 0.5)";
+    const drift = reduceMotion ? 0 : (now / 1000) * 3;
+    const hue = (k * 30 + drift) % 360;
+    return "hsla(" + hue + ", 58%, 62%, 0.5)";
+  }
+
+  // ---- rendering ------------------------------------------------------------
+  function resize() {
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    canvas.width = innerWidth * dpr;
+    canvas.height = innerHeight * dpr;
+    canvas.style.width = innerWidth + "px";
+    canvas.style.height = innerHeight + "px";
+    canvas._dpr = dpr;
+  }
+  addEventListener("resize", () => { resize(); });
+
+  function ghostPath(angle, x, y) {
+    const c = Math.cos(angle), s = Math.sin(angle);
+    const verts = S.PTS.map(([px, py]) => [c * px - s * py + x, s * px + c * py + y]);
+    const segs = S.curvedPath(verts);
+    const p = new Path2D();
+    p.moveTo(segs[0].x0, segs[0].y0);
+    for (const g of segs) p.bezierCurveTo(g.c1x, g.c1y, g.c2x, g.c2y, g.x1, g.y1);
+    p.closePath();
+    return p;
+  }
+
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min((now - last) / 1000, 0.05);
+    last = now;
+    const { scale, ox, oy } = state.view;
+    const dpr = canvas._dpr || 1;
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * ox, dpr * oy);
+    ctx.lineJoin = "round";
+
+    const grout = Math.max(1.4 / scale, 0.028);
+
+    // tiles
+    for (let i = 0; i < state.tiles.length; i++) {
+      const t = state.tiles[i];
+      const age = t.born ? (now - t.born) / 180 : 1;
+      let popped = false;
+      if (age < 1 && !reduceMotion) {
+        const c = S.tileCentroid(t);
+        const sc = 0.82 + 0.18 * (1 - Math.pow(1 - age, 3));
+        ctx.save();
+        ctx.translate(c[0], c[1]); ctx.scale(sc, sc); ctx.translate(-c[0], -c[1]);
+        popped = true;
+      }
+      ctx.fillStyle = tileFill(t, now);
+      ctx.fill(t.path);
+      ctx.strokeStyle = state.palette === "white" ? "#14161d" : "rgba(13, 15, 23, 0.9)";
+      ctx.lineWidth = grout;
+      ctx.stroke(t.path);
+      if (i === eraseHover && state.tool === "erase") {
+        ctx.fillStyle = "rgba(255, 90, 90, 0.35)";
+        ctx.fill(t.path);
+      }
+      if (popped) ctx.restore();
+    }
+
+    // pulses
+    for (let i = pulses.length - 1; i >= 0; i--) {
+      const p = pulses[i];
+      const a = (now - p.t0) / 550;
+      if (a >= 1 || reduceMotion) { pulses.splice(i, 1); continue; }
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 0.6 + a * 1.6, 0, TAU);
+      ctx.strokeStyle = "rgba(255, 255, 255, " + 0.35 * (1 - a) + ")";
+      ctx.lineWidth = 2 / scale;
+      ctx.stroke();
+    }
+
+    // ghost + candidates (add tool only)
+    if (state.tool === "add" && ghost.visible) {
+      const [wx, wy] = toWorld(ghost.sx, ghost.sy);
+
+      if (state.mode === "guided" && state.tiles.length) {
+        // nearest candidate within snap radius
+        let best = null, bestD = SNAP_R;
+        const nearby = [];
+        for (const c of state.candidates) {
+          const d = Math.hypot(c.cx - wx, c.cy - wy);
+          if (d < SHOW_R) nearby.push(c);
+          if (d < bestD) { bestD = d; best = c; }
+        }
+        ghost.snapped = best;
+
+        // faint outlines of every valid option near the cursor
+        ctx.setLineDash([5 / scale, 5 / scale]);
+        for (const c of nearby) {
+          if (c === best) continue;
+          const p = ghostPath((c.k * Math.PI) / 6, c.x, c.y);
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.16)";
+          ctx.lineWidth = 1.2 / scale;
+          ctx.stroke(p);
+        }
+        ctx.setLineDash([]);
+      } else {
+        ghost.snapped = null;
+      }
+
+      // spring the ghost toward its target
+      let tx, ty, ta;
+      if (ghost.snapped) {
+        tx = ghost.snapped.x; ty = ghost.snapped.y; ta = (ghost.snapped.k * Math.PI) / 6;
+      } else {
+        // hold the piece by its centroid
+        const c = Math.cos(ghost.angle), s = Math.sin(ghost.angle);
+        tx = wx - (c * S.CENTROID[0] - s * S.CENTROID[1]);
+        ty = wy - (s * S.CENTROID[0] + c * S.CENTROID[1]);
+        ta = ghost.manualAngle;
+      }
+      const f = reduceMotion ? 1 : 1 - Math.exp(-dt * 17);
+      ghost.x += (tx - ghost.x) * f;
+      ghost.y += (ty - ghost.y) * f;
+      let da = ta - ghost.angle;
+      da = ((da + Math.PI) % TAU + TAU) % TAU - Math.PI;
+      ghost.angle += da * f;
+
+      const gp = ghostPath(ghost.angle, ghost.x, ghost.y);
+      if (ghost.snapped) {
+        ctx.fillStyle = ghostFill(ghost.snapped.k, now);
+        ctx.fill(gp);
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
+        ctx.lineWidth = 2 / scale;
+        ctx.stroke(gp);
+      } else {
+        ctx.fillStyle = "rgba(240, 240, 245, 0.10)";
+        ctx.fill(gp);
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.30)";
+        ctx.lineWidth = 1.4 / scale;
+        ctx.stroke(gp);
+      }
+    }
+
+    if (dirtySave) { dirtySave = false; save(); }
+    requestAnimationFrame(frame);
+  }
+
+  // ---- input ----------------------------------------------------------------
+  const pointers = new Map();
+  let drag = null;      // {sx, sy, panning, button, ox0, oy0}
+  let rot = null;       // {sx, angle0, moved}
+  let pinch0 = null;
+
+  canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
+  canvas.addEventListener("pointerdown", (e) => {
+    canvas.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 2) {
+      const ps = [...pointers.values()];
+      pinch0 = {
+        d: Math.hypot(ps[0].x - ps[1].x, ps[0].y - ps[1].y),
+        cx: (ps[0].x + ps[1].x) / 2, cy: (ps[0].y + ps[1].y) / 2,
+        scale: state.view.scale, ox: state.view.ox, oy: state.view.oy,
+      };
+      drag = null;
+      return;
+    }
+    if (e.button === 2) {
+      rot = { sx: e.clientX, angle0: ghost.manualAngle, moved: false, t0: performance.now() };
+      return;
+    }
+    drag = {
+      sx: e.clientX, sy: e.clientY, panning: e.button === 1,
+      button: e.button, ox0: state.view.ox, oy0: state.view.oy,
+    };
+  });
+
+  canvas.addEventListener("pointermove", (e) => {
+    if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    ghost.sx = e.clientX; ghost.sy = e.clientY;
+    ghost.visible = e.pointerType !== "touch";
+
+    if (pinch0 && pointers.size === 2) {
+      const ps = [...pointers.values()];
+      const d = Math.hypot(ps[0].x - ps[1].x, ps[0].y - ps[1].y);
+      const cx = (ps[0].x + ps[1].x) / 2, cy = (ps[0].y + ps[1].y) / 2;
+      const s = Math.min(300, Math.max(8, pinch0.scale * (d / pinch0.d)));
+      state.view.scale = s;
+      state.view.ox = cx - ((pinch0.cx - pinch0.ox) / pinch0.scale) * s;
+      state.view.oy = cy - ((pinch0.cy - pinch0.oy) / pinch0.scale) * s;
+      return;
+    }
+    if (rot) {
+      const dx = e.clientX - rot.sx;
+      if (Math.abs(dx) > 4) rot.moved = true;
+      ghost.manualAngle = rot.angle0 + dx * 0.012;
+      return;
+    }
+    if (drag) {
+      const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+      if (!drag.panning && (e.pointerType === "touch" ? Math.hypot(dx, dy) > 10 : Math.hypot(dx, dy) > 5)) {
+        drag.panning = true;
+      }
+      if (drag.panning) {
+        state.view.ox = drag.ox0 + dx;
+        state.view.oy = drag.oy0 + dy;
+        dirtySave = true;
+      }
+    }
+    if (state.tool === "erase") {
+      const [wx, wy] = toWorld(e.clientX, e.clientY);
+      eraseHover = hitTile(wx, wy);
+    }
+  });
+
+  function hitTile(wx, wy) {
+    for (let i = state.tiles.length - 1; i >= 0; i--) {
+      if (S.pointInPoly(wx, wy, state.tiles[i].verts)) return i;
+    }
+    return -1;
+  }
+
+  canvas.addEventListener("pointerup", (e) => {
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) pinch0 = null;
+
+    if (rot && e.button === 2) {
+      if (!rot.moved && performance.now() - rot.t0 < 350) {
+        ghost.manualAngle += Math.PI / 6; // quick right-click: one step
+      } else {
+        ghost.manualAngle = Math.round(ghost.manualAngle / (Math.PI / 6)) * (Math.PI / 6);
+      }
+      rot = null;
+      return;
+    }
+    if (!drag) return;
+    const wasPan = drag.panning;
+    drag = null;
+    if (wasPan) return;
+
+    // a click
+    ghost.sx = e.clientX; ghost.sy = e.clientY;
+    const [wx, wy] = toWorld(e.clientX, e.clientY);
+
+    if (state.tool === "erase") {
+      const i = hitTile(wx, wy);
+      if (i >= 0) { removeTileAt(i); eraseHover = -1; }
+      return;
+    }
+
+    if (state.mode === "guided") {
+      if (!state.tiles.length) {
+        placeFreeAt(wx, wy, true);
+      } else if (e.pointerType === "touch") {
+        let best = null, bestD = SNAP_R;
+        for (const c of state.candidates) {
+          const d = Math.hypot(c.cx - wx, c.cy - wy);
+          if (d < bestD) { bestD = d; best = c; }
+        }
+        if (best) commitTile(best);
+      } else if (ghost.snapped) {
+        commitTile(ghost.snapped);
+      }
+    } else {
+      placeFreeAt(wx, wy, true);
+    }
+  });
+
+  canvas.addEventListener("pointercancel", (e) => {
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) pinch0 = null;
+    drag = null; rot = null;
+  });
+
+  function placeFreeAt(wx, wy, snapAngle) {
+    let a = ghost.manualAngle;
+    if (snapAngle) a = Math.round(a / (Math.PI / 6)) * (Math.PI / 6);
+    const k = ((Math.round(a / (Math.PI / 6)) % 12) + 12) % 12;
+    const c = Math.cos((k * Math.PI) / 6), s = Math.sin((k * Math.PI) / 6);
+    commitTile({
+      k,
+      x: wx - (c * S.CENTROID[0] - s * S.CENTROID[1]),
+      y: wy - (s * S.CENTROID[0] + c * S.CENTROID[1]),
+    });
+  }
+
+  canvas.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const factor = Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0016));
+    const s = Math.min(300, Math.max(8, state.view.scale * factor));
+    const k = s / state.view.scale;
+    state.view.ox = e.clientX - (e.clientX - state.view.ox) * k;
+    state.view.oy = e.clientY - (e.clientY - state.view.oy) * k;
+    state.view.scale = s;
+    dirtySave = true;
+  }, { passive: false });
+
+  addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") { e.preventDefault(); doUndo(); }
+    else if (e.key.toLowerCase() === "r") ghost.manualAngle += Math.PI / 6;
+    else if (e.key === "Escape") helpEl.classList.remove("open");
+  });
+
+  // ---- toolbar --------------------------------------------------------------
+  const $ = (id) => document.getElementById(id);
+  function setSeg(pairs, value) {
+    for (const [id, val] of pairs) $(id).classList.toggle("on", val === value);
+  }
+  function syncBar() {
+    setSeg([["b-guided", "guided"], ["b-free", "free"]], state.mode);
+    setSeg([["b-add", "add"], ["b-erase", "erase"]], state.tool);
+    setSeg([["b-color", "color"], ["b-white", "white"]], state.palette);
+    document.body.classList.toggle("erasing", state.tool === "erase");
+  }
+  $("b-guided").onclick = () => { state.mode = "guided"; refresh(); syncBar(); };
+  $("b-free").onclick = () => { state.mode = "free"; refresh(); syncBar(); };
+  $("b-add").onclick = () => { state.tool = "add"; eraseHover = -1; syncBar(); };
+  $("b-erase").onclick = () => { state.tool = "erase"; syncBar(); };
+  $("b-color").onclick = () => { state.palette = "color"; dirtySave = true; syncBar(); };
+  $("b-white").onclick = () => { state.palette = "white"; dirtySave = true; syncBar(); };
+  $("b-rot").onclick = () => { ghost.manualAngle += Math.PI / 6; };
+  $("b-undo").onclick = doUndo;
+  $("b-help").onclick = () => helpEl.classList.add("open");
+  helpEl.onclick = (e) => { if (e.target === helpEl || e.target.closest(".close")) helpEl.classList.remove("open"); };
+
+  let clearArm = 0;
+  $("b-clear").onclick = () => {
+    const now = performance.now();
+    if (now - clearArm < 2500) {
+      state.tiles = []; state.undo = []; pulses.length = 0;
+      seed(); refresh(); centerView();
+      $("b-clear").textContent = "clear";
+      clearArm = 0;
+    } else {
+      clearArm = now;
+      $("b-clear").textContent = "sure?";
+      setTimeout(() => { if (performance.now() - clearArm > 2400) { $("b-clear").textContent = "clear"; clearArm = 0; } }, 2600);
+    }
+  };
+
+  function doUndo() {
+    const u = state.undo.pop();
+    if (!u) return;
+    if (u.type === "add") state.tiles.pop();
+    else state.tiles.splice(u.index, 0, buildTile({ k: u.tile.k, x: u.tile.x, y: u.tile.y, born: 0 }));
+    refresh();
+  }
+
+  // ---- favicon: the tile itself --------------------------------------------
+  (function favicon() {
+    const verts = S.tileVerts({ k: 0, x: 0, y: 0 });
+    const segs = S.curvedPath(verts);
+    let d = "M" + segs[0].x0.toFixed(3) + " " + segs[0].y0.toFixed(3);
+    for (const g of segs) d += "C" + [g.c1x, g.c1y, g.c2x, g.c2y, g.x1, g.y1].map((v) => v.toFixed(3)).join(" ");
+    d += "Z";
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1.4 -1.4 5.8 4.3"><path d="' + d + '" fill="%23c9a0ff" stroke="%2312151f" stroke-width="0.12"/></svg>';
+    const link = document.createElement("link");
+    link.rel = "icon";
+    link.href = "data:image/svg+xml," + svg;
+    document.head.appendChild(link);
+  })();
+
+  // ---- boot -----------------------------------------------------------------
+  function seed() { addTileRaw({ k: 0, x: 0, y: 0 }); }
+  window.__spectre = { state, ghost, toWorld }; // debug/testing hook
+  resize();
+  if (!load()) { seed(); centerView(); }
+  syncBar();
+  refresh();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
