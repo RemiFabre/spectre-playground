@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>the Spectre — aperiodic monotile playground</title>
-<meta name="description" content="Tile the Spectre, the aperiodic monotile, one piece at a time. Guided placements obey the real matching rule; watch which choices remain.">
+<meta name="description" content="Tile the Spectre, the aperiodic monotile. Guided mode only offers placements that provably extend to a perfect tiling; watch the number of possible worlds collapse as you choose.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -41,12 +41,14 @@
   #mark p {
     margin-top: 7px; font-size: 10.5px; letter-spacing: 0.14em; color: var(--fog);
   }
+  #mark p .warn { color: #ff9d9d; }
 
   /* hint */
   #hint {
     position: fixed; bottom: 74px; left: 50%; transform: translateX(-50%);
     font-size: 11px; letter-spacing: 0.1em; color: var(--fog);
-    transition: opacity 0.8s; pointer-events: none; white-space: nowrap;
+    transition: opacity 0.6s; pointer-events: none; white-space: nowrap;
+    max-width: 92vw; text-overflow: ellipsis; overflow: hidden;
   }
   #hint.gone { opacity: 0; }
 
@@ -69,6 +71,7 @@
   #bar button.on { color: #fff; background: rgba(255, 255, 255, 0.1); }
   #bar button:focus-visible { outline: 1px solid rgba(255,255,255,0.6); outline-offset: 2px; }
   #bar button.danger:hover { color: #ff9d9d; }
+  #bar button.busy { color: #ffd166; }
 
   /* help overlay */
   #help {
@@ -79,22 +82,22 @@
   #help.open { display: flex; }
   #help .card {
     background: #171a26; border: 1px solid var(--hairline); border-radius: 14px;
-    max-width: 430px; padding: 28px 30px; cursor: default;
+    max-width: 470px; max-height: 88vh; overflow-y: auto; padding: 26px 30px; cursor: default;
   }
   #help h2 { font-family: "Instrument Serif", serif; font-style: italic; font-weight: 400; font-size: 26px; margin-bottom: 10px; }
-  #help p.lead { font-size: 11.5px; line-height: 1.65; color: var(--fog); margin-bottom: 16px; }
+  #help p.lead { font-size: 11.5px; line-height: 1.65; color: var(--fog); margin-bottom: 14px; }
   #help p.lead a { color: var(--bone); }
   #help table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
   #help td { padding: 4.5px 0; vertical-align: top; }
-  #help td:first-child { color: var(--bone); white-space: nowrap; padding-right: 18px; }
+  #help td:first-child { color: var(--bone); white-space: nowrap; padding-right: 16px; }
   #help td:last-child { color: var(--fog); line-height: 1.5; }
-  #help .close { margin-top: 18px; font-size: 10.5px; letter-spacing: 0.12em; color: var(--fog); }
+  #help .close { margin-top: 16px; font-size: 10.5px; letter-spacing: 0.12em; color: var(--fog); }
 
   @media (max-width: 640px) {
     #mark h1 { font-size: 24px; }
     #mark p { font-size: 9.5px; }
     #bar { gap: 2px; }
-    #bar button { padding: 7px 8px; font-size: 10.5px; }
+    #bar button { padding: 7px 7px; font-size: 10.5px; }
   }
   @media (prefers-reduced-motion: reduce) {
     #hint { transition: none; }
@@ -113,17 +116,21 @@
 <div id="hint">move near an edge — click when the ghost snaps &middot; right-drag rotates</div>
 
 <div id="bar">
-  <button id="b-guided" class="on" title="only placements allowed by the matching rule">guided</button>
+  <button id="b-guided" class="on" title="only placements that provably extend to a perfect tiling">guided</button>
+  <button id="b-local" title="anything that locally fits — some choices dead-end">local</button>
   <button id="b-free" title="stamp anywhere, no rules">free</button>
   <span class="sep"></span>
   <button id="b-add" class="on" title="click to place tiles">add</button>
   <button id="b-erase" title="click tiles to remove them">erase</button>
   <span class="sep"></span>
-  <button id="b-color" class="on" title="colors follow orientation, and slowly drift">color</button>
+  <button id="b-prisma" class="on" title="one flowing pattern across all tiles">prisma</button>
+  <button id="b-color" title="colors follow orientation, slowly drifting">color</button>
   <button id="b-white" title="plain porcelain tiles">white</button>
   <span class="sep"></span>
+  <button id="b-auto" title="auto-tile a disc, edges first (guided)">auto</button>
   <button id="b-rot" title="rotate the held piece (or right-drag, or R)">&#10227;</button>
   <button id="b-undo" title="undo (Cmd/Ctrl+Z)">undo</button>
+  <button id="b-save" title="copy a link that replays this exact board">save</button>
   <button id="b-clear" class="danger" title="start over">clear</button>
   <button id="b-help" title="about &amp; controls">?</button>
 </div>
@@ -132,11 +139,19 @@
   <div class="card">
     <h2>the Spectre</h2>
     <p class="lead">
-      In 2023 a single 13-sided shape was found that tiles the plane — but only aperiodically:
-      the pattern never repeats. This is its equilateral form, with curved edges so that a bump
-      only ever nests into a dent. That is the whole matching rule, and it is why some
-      placements that look fine will still paint you into a corner.
+      In 2023 a single shape was found that tiles the plane — but only aperiodically: the
+      pattern never repeats. Its curved edges make the matching rule physical: a bump only
+      nests into a dent.
       <a href="https://arxiv.org/abs/2305.17743" target="_blank" rel="noopener">Smith, Myers, Kaplan &amp; Goodman-Strauss →</a>
+    </p>
+    <p class="lead">
+      <b>guided</b> only offers placements that provably extend to a perfect, hole-free
+      tiling — they are checked against a 4400-tile master patch built from the Spectre's
+      substitution rules. <b>worlds</b> counts how many places in that master tiling your
+      patch could still be: every choice you make destroys worlds, which is the information
+      your figure encodes. <b>local</b> offers anything that merely fits its neighbours —
+      watch worlds hit zero when you paint yourself out of the true tiling. <b>free</b> has
+      no rules at all.
     </p>
     <table>
       <tr><td>place</td><td>move the ghost near an edge; it snaps to valid spots — click to commit</td></tr>
@@ -144,8 +159,8 @@
       <tr><td>erase</td><td>switch to erase, then click tiles</td></tr>
       <tr><td>pan / zoom</td><td>drag / scroll (pinch on trackpad)</td></tr>
       <tr><td>undo</td><td>Cmd/Ctrl+Z</td></tr>
-      <tr><td>guided</td><td>shows every placement the matching rule allows near your cursor</td></tr>
-      <tr><td>free</td><td>no rules, no collisions — stamp and overlap at will</td></tr>
+      <tr><td>auto</td><td>tiles a disc around your patch by itself — outside edge first, then inward</td></tr>
+      <tr><td>save</td><td>copies a link encoding this exact board, to share or keep</td></tr>
     </table>
     <p class="close">click anywhere to close</p>
   </div>
@@ -164,55 +179,108 @@
   const helpEl = document.getElementById("help");
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+  // master patch: a provably correct aperiodic tiling from the substitution rules
+  const PATCH = S.buildPatch(4);
+  const INDEX = new S.PatchIndex(PATCH);
+  const INTERIOR_COUNT = INDEX.interior.filter(Boolean).length;
+
   // ---- state ----------------------------------------------------------------
   const state = {
     tiles: [],            // {k, x, y, verts, path, born}
     candidates: [],
-    mode: "guided",       // guided | free
+    embeddings: null,     // null = empty board (unconstrained); [] = impossible
+    mode: "guided",       // guided | local | free
     tool: "add",          // add | erase
-    palette: "color",     // color | white
+    palette: "prisma",    // prisma | color | white
     view: { scale: 78, ox: 0, oy: 0 },
     undo: [],
     placedEver: 0,
   };
   const ghost = {
-    sx: innerWidth / 2, sy: innerHeight / 2, // last screen pos of pointer
-    x: 0, y: 0,                              // animated world pos (tile origin)
-    angle: 0,                                // animated angle (rad)
-    manualAngle: 0,
-    snapped: null,                           // candidate object or null
-    visible: false,
+    sx: innerWidth / 2, sy: innerHeight / 2,
+    x: 0, y: 0, angle: 0, manualAngle: 0,
+    snapped: null, visible: false,
   };
-  const pulses = []; // {x, y, t0}
+  const pulses = [];
+  const cluster = { cx: 0, cy: 0, r: 2, minx: -3, miny: -3, maxx: 3, maxy: 3 };
+  let unionPath = null;
   let eraseHover = -1;
   let dirtySave = false;
+  let auto = null; // {queue, timer}
 
-  const SNAP_R = 1.35;   // world units, cursor->candidate centroid
-  const SHOW_R = 2.1;    // show candidate outlines within this radius
+  const SNAP_R = 1.35;
+  const SHOW_R = 2.1;
+  const TILE_AREA = (() => {
+    let a = 0;
+    for (let i = 0; i < S.N; i++) {
+      const [x0, y0] = S.PTS[i], [x1, y1] = S.PTS[(i + 1) % S.N];
+      a += x0 * y1 - x1 * y0;
+    }
+    return Math.abs(a) / 2;
+  })();
+  let viewTween = null; // {scale, cx, cy}
 
-  // ---- persistence ----------------------------------------------------------
+  // ---- hints ----------------------------------------------------------------
+  let hintTimer = 0;
+  function setHint(text, ms) {
+    hintEl.textContent = text;
+    hintEl.classList.remove("gone");
+    clearTimeout(hintTimer);
+    if (ms) hintTimer = setTimeout(() => hintEl.classList.add("gone"), ms);
+  }
+
+  // ---- persistence + share codes -------------------------------------------
+  function boardJSON() {
+    return JSON.stringify({
+      v: 1,
+      t: state.tiles.map((t) => [t.k, Math.round(t.x * 1000), Math.round(t.y * 1000)]),
+      p: state.palette,
+    });
+  }
   function save() {
     try {
-      localStorage.setItem("spectre-v1", JSON.stringify({
+      localStorage.setItem("spectre-v2", JSON.stringify({
         tiles: state.tiles.map((t) => [t.k, t.x, t.y]),
         mode: state.mode, palette: state.palette, view: state.view,
         placedEver: state.placedEver,
       }));
     } catch (e) {}
   }
-  function load() {
+  function loadLocal() {
     try {
-      const d = JSON.parse(localStorage.getItem("spectre-v1"));
+      const d = JSON.parse(localStorage.getItem("spectre-v2"));
       if (d && Array.isArray(d.tiles) && d.tiles.length) {
         for (const [k, x, y] of d.tiles) addTileRaw({ k, x, y });
-        state.mode = d.mode === "free" ? "free" : "guided";
-        state.palette = d.palette === "white" ? "white" : "color";
+        state.mode = ["guided", "local", "free"].includes(d.mode) ? d.mode : "guided";
+        state.palette = ["prisma", "color", "white"].includes(d.palette) ? d.palette : "prisma";
         state.placedEver = d.placedEver || d.tiles.length;
         if (d.view && d.view.scale) state.view = d.view;
         return true;
       }
     } catch (e) {}
     return false;
+  }
+  const b64u = {
+    enc: (bytes) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""),
+    dec: (str) => Uint8Array.from(atob(str.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0)),
+  };
+  async function encodeBoard() {
+    const raw = new TextEncoder().encode(boardJSON());
+    if (typeof CompressionStream !== "undefined") {
+      const cs = new CompressionStream("deflate-raw");
+      const buf = await new Response(new Blob([raw]).stream().pipeThrough(cs)).arrayBuffer();
+      return "z" + b64u.enc(new Uint8Array(buf));
+    }
+    return "j" + b64u.enc(raw);
+  }
+  async function decodeBoard(code) {
+    const kind = code[0], bytes = b64u.dec(code.slice(1));
+    let raw = bytes;
+    if (kind === "z") {
+      const ds = new DecompressionStream("deflate-raw");
+      raw = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(ds)).arrayBuffer());
+    }
+    return JSON.parse(new TextDecoder().decode(raw));
   }
 
   // ---- tiles ----------------------------------------------------------------
@@ -228,40 +296,80 @@
   }
   function addTileRaw(t) { state.tiles.push(buildTile({ k: t.k, x: t.x, y: t.y, born: 0 })); }
 
-  function commitTile(cand) {
+  function plainTiles() { return state.tiles.map((t) => ({ k: t.k, x: t.x, y: t.y })); }
+
+  function commitTile(cand, opts) {
     const t = buildTile({ k: cand.k, x: cand.x, y: cand.y, born: performance.now() });
     state.tiles.push(t);
     state.undo.push({ type: "add" });
     state.placedEver++;
-    const c = S.tileCentroid(t);
-    pulses.push({ x: c[0], y: c[1], t0: performance.now() });
-    refresh();
+    // incremental embedding filter (add only shrinks the set)
+    if (state.embeddings === null) state.embeddings = S.computeEmbeddings(INDEX, plainTiles());
+    else state.embeddings = S.filterEmbeddings(INDEX, state.embeddings, { k: t.k, x: t.x, y: t.y });
+    if (!opts || !opts.quiet) {
+      const c = S.tileCentroid(t);
+      pulses.push({ x: c[0], y: c[1], t0: performance.now() });
+      refresh();
+    }
   }
   function removeTileAt(i) {
     const [t] = state.tiles.splice(i, 1);
     state.undo.push({ type: "remove", tile: { k: t.k, x: t.x, y: t.y }, index: i });
+    state.embeddings = state.tiles.length ? S.computeEmbeddings(INDEX, plainTiles()) : null;
     refresh();
   }
+
   function refresh() {
-    state.candidates = state.mode === "guided" && state.tiles.length
-      ? S.generateCandidates(state.tiles.map((t) => ({ k: t.k, x: t.x, y: t.y })))
-      : [];
-    subEl.textContent = "an aperiodic monotile · n = " + state.tiles.length;
-    if (state.placedEver >= 4) hintEl.classList.add("gone");
+    if (state.mode === "guided" && state.tiles.length) {
+      state.candidates = state.embeddings && state.embeddings.length
+        ? S.guidedCandidates(INDEX, plainTiles(), state.embeddings)
+        : [];
+    } else if (state.mode === "local" && state.tiles.length) {
+      state.candidates = S.generateCandidates(plainTiles());
+    } else {
+      state.candidates = [];
+    }
+    // cluster extent + union path
+    unionPath = new Path2D();
+    let minx = 1e9, miny = 1e9, maxx = -1e9, maxy = -1e9;
+    for (const t of state.tiles) {
+      unionPath.addPath(t.path);
+      const c = S.tileCentroid(t);
+      if (c[0] < minx) minx = c[0]; if (c[0] > maxx) maxx = c[0];
+      if (c[1] < miny) miny = c[1]; if (c[1] > maxy) maxy = c[1];
+    }
+    if (state.tiles.length) {
+      cluster.cx = (minx + maxx) / 2; cluster.cy = (miny + maxy) / 2;
+      cluster.r = Math.max(2, Math.hypot(maxx - minx, maxy - miny) / 2 + S.CIRCUMRADIUS);
+      cluster.minx = minx - 3; cluster.miny = miny - 3; cluster.maxx = maxx + 3; cluster.maxy = maxy + 3;
+    }
+    // HUD
+    let sub = "an aperiodic monotile · n = " + state.tiles.length;
+    if (state.tiles.length && state.mode !== "free" && state.embeddings !== null) {
+      const w = state.embeddings.length;
+      sub += " · worlds = " + w;
+      if (w === 0) sub += " ⚠";
+    }
+    subEl.innerHTML = sub.includes("⚠")
+      ? sub.replace(/worlds = 0 ⚠/, '<span class="warn">worlds = 0</span>')
+      : sub;
+    if (state.tiles.length && state.embeddings && state.embeddings.length === 0 && state.mode !== "free") {
+      setHint("this patch no longer fits the infinite tiling — undo or erase", 5000);
+    } else if (state.placedEver >= 4) {
+      hintEl.classList.add("gone");
+    }
     dirtySave = true;
   }
 
-  // ---- view transforms ------------------------------------------------------
+  // ---- view -----------------------------------------------------------------
   function toWorld(sx, sy) {
     return [(sx - state.view.ox) / state.view.scale, (sy - state.view.oy) / state.view.scale];
   }
   function centerView() {
     if (!state.tiles.length) { state.view.ox = innerWidth / 2; state.view.oy = innerHeight / 2; return; }
-    let x = 0, y = 0;
-    for (const t of state.tiles) { const c = S.tileCentroid(t); x += c[0]; y += c[1]; }
-    x /= state.tiles.length; y /= state.tiles.length;
-    state.view.ox = innerWidth / 2 - x * state.view.scale;
-    state.view.oy = innerHeight / 2 - y * state.view.scale;
+    refresh();
+    state.view.ox = innerWidth / 2 - cluster.cx * state.view.scale;
+    state.view.oy = innerHeight / 2 - cluster.cy * state.view.scale;
   }
 
   // ---- colors ---------------------------------------------------------------
@@ -274,7 +382,7 @@
       const v = 94 + hash01(t.x, t.y) * 3;
       return "hsl(45, 14%, " + v + "%)";
     }
-    const drift = reduceMotion ? 0 : (now / 1000) * 3; // 3 deg/s
+    const drift = reduceMotion ? 0 : (now / 1000) * 3;
     const hue = (t.k * 30 + drift + hash01(t.x, t.y) * 10) % 360;
     const l = 58 + hash01(t.y, t.x) * 8;
     return "hsl(" + hue + ", 58%, " + l + "%)";
@@ -283,7 +391,61 @@
     if (state.palette === "white") return "rgba(245, 243, 236, 0.5)";
     const drift = reduceMotion ? 0 : (now / 1000) * 3;
     const hue = (k * 30 + drift) % 360;
-    return "hsla(" + hue + ", 58%, 62%, 0.5)";
+    return "hsla(" + hue + ", 70%, 62%, 0.5)";
+  }
+
+  // one flowing field painted through all tiles at once
+  function drawPrisma(now) {
+    if (!state.tiles.length || !unionPath) return;
+    const t = reduceMotion ? 0 : now / 1000;
+    const R = Math.max(cluster.r * 1.15, 6);
+    const bx = cluster.minx - R, by = cluster.miny - R;
+    const bw = (cluster.maxx - cluster.minx) + 2 * R, bh = (cluster.maxy - cluster.miny) + 2 * R;
+    ctx.save();
+    ctx.clip(unionPath);
+    ctx.fillStyle = "#0a0c15";
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.globalCompositeOperation = "lighter";
+    const orbs = [
+      { sp: 0.045, ph: 0.0, orb: 0.55, rad: 1.15, hue: (t * 16) % 360 },
+      { sp: -0.032, ph: 2.1, orb: 0.75, rad: 1.35, hue: (t * 16 + 130) % 360 },
+      { sp: 0.021, ph: 4.2, orb: 0.45, rad: 0.85, hue: (t * 16 + 250) % 360 },
+    ];
+    for (const o of orbs) {
+      const ox = cluster.cx + Math.cos(t * o.sp * TAU + o.ph) * R * o.orb;
+      const oy = cluster.cy + Math.sin(t * o.sp * TAU + o.ph) * R * o.orb;
+      const g = ctx.createRadialGradient(ox, oy, 0, ox, oy, R * o.rad);
+      g.addColorStop(0, "hsla(" + o.hue + ", 100%, 58%, 0.95)");
+      g.addColorStop(0.45, "hsla(" + ((o.hue + 45) % 360) + ", 100%, 46%, 0.40)");
+      g.addColorStop(1, "hsla(0, 0%, 0%, 0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(bx, by, bw, bh);
+    }
+    if (ctx.createConicGradient) {
+      const g = ctx.createConicGradient(t * 0.1 * TAU, cluster.cx, cluster.cy);
+      for (let i = 0; i <= 12; i++) {
+        g.addColorStop(i / 12, "hsla(" + ((i * 30 + t * 30) % 360) + ", 100%, 55%, " + (i % 2 ? 0.24 : 0.03) + ")");
+      }
+      ctx.fillStyle = g;
+      ctx.fillRect(bx, by, bw, bh);
+    }
+    // breathing rings, drifting outward through the tiles
+    {
+      const g = ctx.createRadialGradient(cluster.cx, cluster.cy, 0, cluster.cx, cluster.cy, R * 1.35);
+      const nRings = 7;
+      const phase = reduceMotion ? 0 : (t * 0.045) % (1 / nRings);
+      for (let i = 0; i < nRings; i++) {
+        const p = i / nRings + phase;
+        if (p >= 1) continue;
+        const hue = (i * 51 + t * 20) % 360;
+        g.addColorStop(Math.max(0, p - 0.012), "hsla(0, 0%, 0%, 0)");
+        g.addColorStop(p, "hsla(" + hue + ", 100%, 62%, 0.30)");
+        g.addColorStop(Math.min(1, p + 0.012), "hsla(0, 0%, 0%, 0)");
+      }
+      ctx.fillStyle = g;
+      ctx.fillRect(bx, by, bw, bh);
+    }
+    ctx.restore();
   }
 
   // ---- rendering ------------------------------------------------------------
@@ -295,7 +457,7 @@
     canvas.style.height = innerHeight + "px";
     canvas._dpr = dpr;
   }
-  addEventListener("resize", () => { resize(); });
+  addEventListener("resize", resize);
 
   function ghostPath(angle, x, y) {
     const c = Math.cos(angle), s = Math.sin(angle);
@@ -312,6 +474,16 @@
   function frame(now) {
     const dt = Math.min((now - last) / 1000, 0.05);
     last = now;
+    if (viewTween) {
+      const f = reduceMotion ? 1 : 1 - Math.exp(-dt * 4);
+      const v = state.view;
+      v.scale += (viewTween.scale - v.scale) * f;
+      const tox = innerWidth / 2 - viewTween.cx * v.scale;
+      const toy = innerHeight / 2 - viewTween.cy * v.scale;
+      v.ox += (tox - v.ox) * f;
+      v.oy += (toy - v.oy) * f;
+      if (Math.abs(v.scale - viewTween.scale) < 0.2 && Math.abs(v.ox - tox) < 1 && Math.abs(v.oy - toy) < 1) viewTween = null;
+    }
     const { scale, ox, oy } = state.view;
     const dpr = canvas._dpr || 1;
 
@@ -321,29 +493,47 @@
     ctx.lineJoin = "round";
 
     const grout = Math.max(1.4 / scale, 0.028);
+    const prisma = state.palette === "prisma";
 
-    // tiles
-    for (let i = 0; i < state.tiles.length; i++) {
-      const t = state.tiles[i];
-      const age = t.born ? (now - t.born) / 180 : 1;
-      let popped = false;
-      if (age < 1 && !reduceMotion) {
-        const c = S.tileCentroid(t);
-        const sc = 0.82 + 0.18 * (1 - Math.pow(1 - age, 3));
-        ctx.save();
-        ctx.translate(c[0], c[1]); ctx.scale(sc, sc); ctx.translate(-c[0], -c[1]);
-        popped = true;
-      }
-      ctx.fillStyle = tileFill(t, now);
-      ctx.fill(t.path);
-      ctx.strokeStyle = state.palette === "white" ? "#14161d" : "rgba(13, 15, 23, 0.9)";
-      ctx.lineWidth = grout;
-      ctx.stroke(t.path);
-      if (i === eraseHover && state.tool === "erase") {
-        ctx.fillStyle = "rgba(255, 90, 90, 0.35)";
+    if (prisma) {
+      drawPrisma(now);
+      // per-tile identity: orientation shimmer + grout on top of the field
+      for (let i = 0; i < state.tiles.length; i++) {
+        const t = state.tiles[i];
+        const hue = (t.k * 30 + (reduceMotion ? 0 : now / 50)) % 360;
+        ctx.fillStyle = "hsla(" + hue + ", 85%, 62%, 0.12)";
         ctx.fill(t.path);
+        ctx.strokeStyle = "rgba(8, 10, 18, 0.85)";
+        ctx.lineWidth = grout;
+        ctx.stroke(t.path);
+        if (i === eraseHover && state.tool === "erase") {
+          ctx.fillStyle = "rgba(255, 90, 90, 0.35)";
+          ctx.fill(t.path);
+        }
       }
-      if (popped) ctx.restore();
+    } else {
+      for (let i = 0; i < state.tiles.length; i++) {
+        const t = state.tiles[i];
+        const age = t.born ? (now - t.born) / 180 : 1;
+        let popped = false;
+        if (age < 1 && !reduceMotion) {
+          const c = S.tileCentroid(t);
+          const sc = 0.82 + 0.18 * (1 - Math.pow(1 - age, 3));
+          ctx.save();
+          ctx.translate(c[0], c[1]); ctx.scale(sc, sc); ctx.translate(-c[0], -c[1]);
+          popped = true;
+        }
+        ctx.fillStyle = tileFill(t, now);
+        ctx.fill(t.path);
+        ctx.strokeStyle = state.palette === "white" ? "#14161d" : "rgba(13, 15, 23, 0.9)";
+        ctx.lineWidth = grout;
+        ctx.stroke(t.path);
+        if (i === eraseHover && state.tool === "erase") {
+          ctx.fillStyle = "rgba(255, 90, 90, 0.35)";
+          ctx.fill(t.path);
+        }
+        if (popped) ctx.restore();
+      }
     }
 
     // pulses
@@ -358,12 +548,12 @@
       ctx.stroke();
     }
 
-    // ghost + candidates (add tool only)
-    if (state.tool === "add" && ghost.visible) {
+    // ghost + candidates (add tool only, not during auto)
+    if (state.tool === "add" && ghost.visible && !auto) {
       const [wx, wy] = toWorld(ghost.sx, ghost.sy);
+      const usesCands = state.mode !== "free" && state.tiles.length > 0;
 
-      if (state.mode === "guided" && state.tiles.length) {
-        // nearest candidate within snap radius
+      if (usesCands) {
         let best = null, bestD = SNAP_R;
         const nearby = [];
         for (const c of state.candidates) {
@@ -372,8 +562,6 @@
           if (d < bestD) { bestD = d; best = c; }
         }
         ghost.snapped = best;
-
-        // faint outlines of every valid option near the cursor
         ctx.setLineDash([5 / scale, 5 / scale]);
         for (const c of nearby) {
           if (c === best) continue;
@@ -387,12 +575,10 @@
         ghost.snapped = null;
       }
 
-      // spring the ghost toward its target
       let tx, ty, ta;
       if (ghost.snapped) {
         tx = ghost.snapped.x; ty = ghost.snapped.y; ta = (ghost.snapped.k * Math.PI) / 6;
       } else {
-        // hold the piece by its centroid
         const c = Math.cos(ghost.angle), s = Math.sin(ghost.angle);
         tx = wx - (c * S.CENTROID[0] - s * S.CENTROID[1]);
         ty = wy - (s * S.CENTROID[0] + c * S.CENTROID[1]);
@@ -425,10 +611,68 @@
     requestAnimationFrame(frame);
   }
 
+  // ---- auto tiling ----------------------------------------------------------
+  function stopAuto(finished) {
+    if (!auto) return;
+    clearInterval(auto.timer);
+    auto = null;
+    document.getElementById("b-auto").textContent = "auto";
+    document.getElementById("b-auto").classList.remove("busy");
+    refresh();
+    if (finished) setHint("disc complete — " + state.tiles.length + " tiles", 4000);
+  }
+  function startAuto() {
+    if (auto) { stopAuto(false); return; }
+    if (state.mode !== "guided") { state.mode = "guided"; syncBar(); }
+    if (!state.tiles.length) {
+      const [wx, wy] = toWorld(innerWidth / 2, innerHeight / 2);
+      commitTile({ k: 0, x: wx - S.CENTROID[0], y: wy - S.CENTROID[1] });
+    }
+    if (!state.embeddings || !state.embeddings.length) {
+      refresh();
+      if (!state.embeddings || !state.embeddings.length) {
+        setHint("this patch can't extend to a perfect tiling — undo or clear first", 5000);
+        return;
+      }
+    }
+    const emb = state.embeddings[Math.floor(Math.random() * state.embeddings.length)];
+    const rVis = Math.min(innerWidth, innerHeight) / (2 * state.view.scale) * 0.85;
+    const rMin = Math.sqrt((55 * TILE_AREA) / Math.PI); // at least ~55 tiles
+    const R = Math.min(20, Math.max(rVis, rMin, cluster.r * 1.3 + 2));
+    const fitScale = Math.min(innerWidth, innerHeight) / (2 * (R + 1.5));
+    if (fitScale < state.view.scale) viewTween = { scale: fitScale, cx: cluster.cx, cy: cluster.cy };
+    const placedKeys = new Set(state.tiles.map((t) => t.k + ":" + Math.round(t.x * 200) + "," + Math.round(t.y * 200)));
+    const targets = [];
+    for (let i = 0; i < PATCH.length; i++) {
+      if (!INDEX.interior[i]) continue;
+      const u = S.unmapTile(emb, PATCH[i]);
+      const cc = S.tileCentroid(u);
+      const d = Math.hypot(cc[0] - cluster.cx, cc[1] - cluster.cy);
+      if (d > R) continue;
+      const key = u.k + ":" + Math.round(u.x * 200) + "," + Math.round(u.y * 200);
+      if (placedKeys.has(key)) continue;
+      targets.push({ tile: u, d });
+    }
+    if (!targets.length) { setHint("nothing left to fill at this zoom — zoom out for a bigger disc", 4000); return; }
+    targets.sort((a, b) => b.d - a.d); // outside edge first, then inward
+    const btn = document.getElementById("b-auto");
+    btn.textContent = "stop"; btn.classList.add("busy");
+    auto = { queue: targets.map((t) => t.tile), timer: 0 };
+    auto.timer = setInterval(() => {
+      if (!auto.queue.length) { stopAuto(true); return; }
+      const t = auto.queue.shift();
+      commitTile(t, { quiet: true });
+      const c = S.tileCentroid(t);
+      pulses.push({ x: c[0], y: c[1], t0: performance.now() });
+      unionPath && unionPath.addPath(state.tiles[state.tiles.length - 1].path);
+      subEl.textContent = "an aperiodic monotile · n = " + state.tiles.length + " · worlds = " + state.embeddings.length;
+    }, 30);
+  }
+
   // ---- input ----------------------------------------------------------------
   const pointers = new Map();
-  let drag = null;      // {sx, sy, panning, button, ox0, oy0}
-  let rot = null;       // {sx, angle0, moved}
+  let drag = null;
+  let rot = null;
   let pinch0 = null;
 
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -483,6 +727,7 @@
         drag.panning = true;
       }
       if (drag.panning) {
+        viewTween = null;
         state.view.ox = drag.ox0 + dx;
         state.view.oy = drag.oy0 + dy;
         dirtySave = true;
@@ -507,7 +752,7 @@
 
     if (rot && e.button === 2) {
       if (!rot.moved && performance.now() - rot.t0 < 350) {
-        ghost.manualAngle += Math.PI / 6; // quick right-click: one step
+        ghost.manualAngle += Math.PI / 6;
       } else {
         ghost.manualAngle = Math.round(ghost.manualAngle / (Math.PI / 6)) * (Math.PI / 6);
       }
@@ -517,9 +762,8 @@
     if (!drag) return;
     const wasPan = drag.panning;
     drag = null;
-    if (wasPan) return;
+    if (wasPan || auto) return;
 
-    // a click
     ghost.sx = e.clientX; ghost.sy = e.clientY;
     const [wx, wy] = toWorld(e.clientX, e.clientY);
 
@@ -529,7 +773,7 @@
       return;
     }
 
-    if (state.mode === "guided") {
+    if (state.mode !== "free") {
       if (!state.tiles.length) {
         placeFreeAt(wx, wy, true);
       } else if (e.pointerType === "touch") {
@@ -567,6 +811,7 @@
 
   canvas.addEventListener("wheel", (e) => {
     e.preventDefault();
+    viewTween = null;
     const factor = Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0016));
     const s = Math.min(300, Math.max(8, state.view.scale * factor));
     const k = s / state.view.scale;
@@ -588,27 +833,46 @@
     for (const [id, val] of pairs) $(id).classList.toggle("on", val === value);
   }
   function syncBar() {
-    setSeg([["b-guided", "guided"], ["b-free", "free"]], state.mode);
+    setSeg([["b-guided", "guided"], ["b-local", "local"], ["b-free", "free"]], state.mode);
     setSeg([["b-add", "add"], ["b-erase", "erase"]], state.tool);
-    setSeg([["b-color", "color"], ["b-white", "white"]], state.palette);
+    setSeg([["b-prisma", "prisma"], ["b-color", "color"], ["b-white", "white"]], state.palette);
     document.body.classList.toggle("erasing", state.tool === "erase");
   }
-  $("b-guided").onclick = () => { state.mode = "guided"; refresh(); syncBar(); };
-  $("b-free").onclick = () => { state.mode = "free"; refresh(); syncBar(); };
+  function setMode(m) { stopAuto(false); state.mode = m; refresh(); syncBar(); }
+  $("b-guided").onclick = () => setMode("guided");
+  $("b-local").onclick = () => setMode("local");
+  $("b-free").onclick = () => setMode("free");
   $("b-add").onclick = () => { state.tool = "add"; eraseHover = -1; syncBar(); };
-  $("b-erase").onclick = () => { state.tool = "erase"; syncBar(); };
+  $("b-erase").onclick = () => { stopAuto(false); state.tool = "erase"; syncBar(); };
+  $("b-prisma").onclick = () => { state.palette = "prisma"; dirtySave = true; syncBar(); };
   $("b-color").onclick = () => { state.palette = "color"; dirtySave = true; syncBar(); };
   $("b-white").onclick = () => { state.palette = "white"; dirtySave = true; syncBar(); };
+  $("b-auto").onclick = startAuto;
   $("b-rot").onclick = () => { ghost.manualAngle += Math.PI / 6; };
   $("b-undo").onclick = doUndo;
   $("b-help").onclick = () => helpEl.classList.add("open");
   helpEl.onclick = (e) => { if (e.target === helpEl || e.target.closest(".close")) helpEl.classList.remove("open"); };
 
+  $("b-save").onclick = async () => {
+    try {
+      const code = await encodeBoard();
+      const url = location.origin + location.pathname + "#b=" + code;
+      history.replaceState(null, "", "#b=" + code);
+      let copied = false;
+      try { await navigator.clipboard.writeText(url); copied = true; } catch (err) {}
+      setHint(copied ? "link copied — it replays this exact board" : "board encoded in the address bar — copy the URL", 5000);
+    } catch (err) {
+      setHint("could not encode the board", 4000);
+    }
+  };
+
   let clearArm = 0;
   $("b-clear").onclick = () => {
     const now = performance.now();
     if (now - clearArm < 2500) {
-      state.tiles = []; state.undo = []; pulses.length = 0;
+      stopAuto(false);
+      state.tiles = []; state.undo = []; state.embeddings = null; pulses.length = 0;
+      history.replaceState(null, "", location.pathname);
       seed(); refresh(); centerView();
       $("b-clear").textContent = "clear";
       clearArm = 0;
@@ -620,10 +884,12 @@
   };
 
   function doUndo() {
+    stopAuto(false);
     const u = state.undo.pop();
     if (!u) return;
     if (u.type === "add") state.tiles.pop();
     else state.tiles.splice(u.index, 0, buildTile({ k: u.tile.k, x: u.tile.x, y: u.tile.y, born: 0 }));
+    state.embeddings = state.tiles.length ? S.computeEmbeddings(INDEX, plainTiles()) : null;
     refresh();
   }
 
@@ -643,12 +909,29 @@
 
   // ---- boot -----------------------------------------------------------------
   function seed() { addTileRaw({ k: 0, x: 0, y: 0 }); }
-  window.__spectre = { state, ghost, toWorld }; // debug/testing hook
+  window.__spectre = { state, ghost, toWorld, INDEX, PATCH, startAuto, stopAuto }; // debug/testing hook
   resize();
-  if (!load()) { seed(); centerView(); }
-  syncBar();
-  refresh();
-  requestAnimationFrame(frame);
+
+  (async function boot() {
+    let loaded = false;
+    const m = location.hash.match(/^#b=(.+)$/);
+    if (m) {
+      try {
+        const d = await decodeBoard(m[1]);
+        for (const [k, x, y] of d.t) addTileRaw({ k, x: x / 1000, y: y / 1000 });
+        if (["prisma", "color", "white"].includes(d.p)) state.palette = d.p;
+        state.placedEver = d.t.length;
+        loaded = state.tiles.length > 0;
+        if (loaded) centerView();
+      } catch (e) { console.warn("bad board code", e); }
+    }
+    if (!loaded) loaded = loadLocal();
+    if (!loaded) { seed(); centerView(); }
+    state.embeddings = state.tiles.length ? S.computeEmbeddings(INDEX, plainTiles()) : null;
+    syncBar();
+    refresh();
+    requestAnimationFrame(frame);
+  })();
 })();
 </script>
 </body>

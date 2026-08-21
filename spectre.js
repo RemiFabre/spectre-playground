@@ -307,10 +307,280 @@
     return pts;
   }
 
+  // ---- substitution system ---------------------------------------------------
+  // Port of the SMKGS Spectre supertile rules (via reversi-fun/symbolic-spectre-tiles,
+  // itself a port of the reference implementation). Transforms are [m00,m10,m01,m11,tx,ty]
+  // (column-major 2x2 + translation). Each supertile level applies a y-axis mirror,
+  // so an EVEN number of iterations yields a patch of unreflected spectres whose
+  // rotations are all multiples of 30 deg — a provably correct aperiodic patch.
+  function trotT(deg) {
+    const r = (deg * Math.PI) / 180;
+    const c = Math.cos(r), s = Math.sin(r);
+    return [c, s, -s, c, 0, 0];
+  }
+  const IDENT_T = [1, 0, 0, 1, 0, 0];
+  function mulT(A, B) {
+    return [
+      A[0] * B[0] + A[2] * B[1],
+      A[1] * B[0] + A[3] * B[1],
+      A[0] * B[2] + A[2] * B[3],
+      A[1] * B[2] + A[3] * B[3],
+      A[0] * B[4] + A[2] * B[5] + A[4],
+      A[1] * B[4] + A[3] * B[5] + A[5],
+    ];
+  }
+  function transPtT(T, p) {
+    return [p[0] * T[0] + p[1] * T[2] + T[4], p[0] * T[1] + p[1] * T[3] + T[5]];
+  }
+  const MIRROR_T = [-1, 0, 0, 1, 0, 0];
+
+  const SUBSTITUTION_RULES = [
+    ["Gamma", ["Pi", "Delta", null, "Theta", "Sigma", "Xi", "Phi", "Gamma"]],
+    ["Delta", ["Xi", "Delta", "Xi", "Phi", "Sigma", "Pi", "Phi", "Gamma"]],
+    ["Theta", ["Psi", "Delta", "Pi", "Phi", "Sigma", "Pi", "Phi", "Gamma"]],
+    ["Lambda", ["Psi", "Delta", "Xi", "Phi", "Sigma", "Pi", "Phi", "Gamma"]],
+    ["Xi", ["Psi", "Delta", "Pi", "Phi", "Sigma", "Psi", "Phi", "Gamma"]],
+    ["Pi", ["Psi", "Delta", "Xi", "Phi", "Sigma", "Psi", "Phi", "Gamma"]],
+    ["Sigma", ["Xi", "Delta", "Xi", "Phi", "Sigma", "Pi", "Lambda", "Gamma"]],
+    ["Phi", ["Psi", "Delta", "Psi", "Phi", "Sigma", "Pi", "Phi", "Gamma"]],
+    ["Psi", ["Psi", "Delta", "Psi", "Phi", "Sigma", "Psi", "Phi", "Gamma"]],
+  ];
+  const QUAD_IDX = [3, 5, 7, 11];
+
+  function buildPatch(iterations) {
+    if (iterations === undefined) iterations = 4;
+    const quad0 = QUAD_IDX.map((i) => PTS[i].slice());
+    // base generation
+    let tiles = {};
+    const names = SUBSTITUTION_RULES.map((r) => r[0]);
+    for (const label of names) {
+      if (label === "Gamma") {
+        tiles[label] = {
+          meta: true, quad: quad0,
+          children: [{ meta: false, label: "Gamma1" }, { meta: false, label: "Gamma2" }],
+          transforms: [IDENT_T, mulT([1, 0, 0, 1, PTS[8][0], PTS[8][1]], trotT(30))],
+        };
+      } else {
+        tiles[label] = { meta: false, label, quad: quad0 };
+      }
+    }
+    for (let it = 0; it < iterations; it++) {
+      const quad = tiles["Delta"].quad;
+      let totalAngle = 0;
+      let rotation = trotT(0);
+      const transformations = [rotation];
+      let transformedQuad = quad.map((q) => q.slice());
+      for (const [angle, from, to] of [[60, 3, 1], [0, 2, 0], [60, 3, 1], [60, 3, 1], [0, 2, 0], [60, 3, 1], [-120, 3, 3]]) {
+        if (angle !== 0) {
+          totalAngle += angle;
+          rotation = trotT(totalAngle);
+          transformedQuad = quad.map((q) => transPtT(rotation, q));
+        }
+        const prev = transformations[transformations.length - 1];
+        const anchor = transPtT(prev, quad[from]);
+        const move = [anchor[0] - transformedQuad[to][0], anchor[1] - transformedQuad[to][1]];
+        transformations.push(mulT([1, 0, 0, 1, move[0], move[1]], rotation));
+      }
+      for (let i = 0; i < transformations.length; i++) transformations[i] = mulT(MIRROR_T, transformations[i]);
+      const superQuad = [
+        transPtT(transformations[6], quad[2]),
+        transPtT(transformations[5], quad[1]),
+        transPtT(transformations[3], quad[2]),
+        transPtT(transformations[0], quad[1]),
+      ];
+      const next = {};
+      for (const [label, subs] of SUBSTITUTION_RULES) {
+        const children = [], transforms = [];
+        for (let i = 0; i < subs.length; i++) {
+          if (!subs[i]) continue;
+          children.push(tiles[subs[i]]);
+          transforms.push(transformations[i]);
+        }
+        next[label] = { meta: true, quad: superQuad, children, transforms };
+      }
+      tiles = next;
+    }
+    // walk leaves of Delta
+    const out = [];
+    (function walk(node, T) {
+      if (!node.meta) {
+        const det = T[0] * T[3] - T[1] * T[2];
+        const ang = Math.atan2(T[1], T[0]);
+        let k = Math.round((ang * 6) / Math.PI);
+        k = ((k % 12) + 12) % 12;
+        out.push({ k, x: T[4], y: T[5], label: node.label, det });
+        return;
+      }
+      for (let i = 0; i < node.children.length; i++) walk(node.children[i], mulT(T, node.transforms[i]));
+    })(tiles["Delta"], IDENT_T);
+    return out;
+  }
+
+  // ---- patch index + cluster embeddings -------------------------------------
+  // PatchIndex answers: is tile (k,x,y) in the master patch? who are a patch
+  // tile's neighbours? An embedding maps the user's plane into the patch plane by
+  // rotation rho (x12) + translation; the guided mode keeps the set of embeddings
+  // consistent with every placed tile, and only offers neighbours that at least
+  // one surviving embedding endorses — so every offer extends to a perfect patch.
+  const QCELL = 0.05, QTOL = 1e-3;
+
+  function PatchIndex(patchTiles) {
+    this.tiles = patchTiles;
+    this.byCell = new Map(); // "k:cx,cy" -> [indices]
+    for (let i = 0; i < patchTiles.length; i++) {
+      const t = patchTiles[i];
+      const key = t.k + ":" + Math.floor(t.x / QCELL) + "," + Math.floor(t.y / QCELL);
+      if (!this.byCell.has(key)) this.byCell.set(key, []);
+      this.byCell.get(key).push(i);
+    }
+    // adjacency via shared edge midpoints
+    const midMap = new Map();
+    this.neighbors = patchTiles.map(() => []);
+    for (let i = 0; i < patchTiles.length; i++) {
+      const vs = tileVerts(patchTiles[i]);
+      for (let e = 0; e < N; e++) {
+        const a = vs[e], b = vs[(e + 1) % N];
+        const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+        const kx = Math.floor(mx / QCELL), ky = Math.floor(my / QCELL);
+        let matched = false;
+        for (let ox = -1; ox <= 1 && !matched; ox++) for (let oy = -1; oy <= 1 && !matched; oy++) {
+          const arr = midMap.get((kx + ox) + "," + (ky + oy));
+          if (!arr) continue;
+          for (const o of arr) {
+            if (Math.abs(o.mx - mx) < QTOL && Math.abs(o.my - my) < QTOL) {
+              this.neighbors[i].push(o.i);
+              this.neighbors[o.i].push(i);
+              matched = true; break;
+            }
+          }
+        }
+        const key = kx + "," + ky;
+        if (!midMap.has(key)) midMap.set(key, []);
+        midMap.get(key).push({ mx, my, i });
+      }
+    }
+    // interior = every one of the 14 edges is glued
+    this.interior = this.neighbors.map((ns, i) => {
+      const vs = tileVerts(patchTiles[i]);
+      let glued = 0;
+      for (let e = 0; e < N; e++) {
+        const a = vs[e], b = vs[(e + 1) % N];
+        const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+        const kx = Math.floor(mx / QCELL), ky = Math.floor(my / QCELL);
+        let found = false;
+        for (let ox = -1; ox <= 1 && !found; ox++) for (let oy = -1; oy <= 1 && !found; oy++) {
+          const arr = midMap.get((kx + ox) + "," + (ky + oy));
+          if (!arr) continue;
+          for (const o of arr) {
+            if (o.i !== i && Math.abs(o.mx - mx) < QTOL && Math.abs(o.my - my) < QTOL) { found = true; break; }
+          }
+        }
+        if (found) glued++;
+      }
+      return glued === N;
+    });
+  }
+  PatchIndex.prototype.find = function (k, x, y) {
+    const kx = Math.floor(x / QCELL), ky = Math.floor(y / QCELL);
+    for (let ox = -1; ox <= 1; ox++) for (let oy = -1; oy <= 1; oy++) {
+      const arr = this.byCell.get(k + ":" + (kx + ox) + "," + (ky + oy));
+      if (!arr) continue;
+      for (const i of arr) {
+        const t = this.tiles[i];
+        if (Math.abs(t.x - x) < QTOL && Math.abs(t.y - y) < QTOL) return i;
+      }
+    }
+    return -1;
+  };
+
+  // embedding = {rho, tx, ty}: user tile (k,x,y) -> patch tile ((k+rho)%12, R_rho*(x,y)+(tx,ty))
+  function mapTile(emb, t) {
+    const c = COS[emb.rho], s = SIN[emb.rho];
+    return { k: (t.k + emb.rho) % 12, x: c * t.x - s * t.y + emb.tx, y: s * t.x + c * t.y + emb.ty };
+  }
+  function unmapTile(emb, p) {
+    const c = COS[emb.rho], s = SIN[emb.rho];
+    const dx = p.x - emb.tx, dy = p.y - emb.ty;
+    return { k: ((p.k - emb.rho) % 12 + 12) % 12, x: c * dx + s * dy, y: -s * dx + c * dy };
+  }
+
+  // all embeddings of the cluster into the patch (interior tiles only).
+  // Returns [] if any tile has a non-grid pose (free-mode debris) or none fit.
+  function computeEmbeddings(index, userTiles) {
+    if (!userTiles.length) return null; // null = unconstrained (empty board)
+    for (const t of userTiles) if (!Number.isInteger(t.k)) return [];
+    const t0 = userTiles[0];
+    const out = [];
+    for (let i = 0; i < index.tiles.length; i++) {
+      if (!index.interior[i]) continue;
+      const p = index.tiles[i];
+      const rho = ((p.k - t0.k) % 12 + 12) % 12;
+      const c = COS[rho], s = SIN[rho];
+      const emb = { rho, tx: p.x - (c * t0.x - s * t0.y), ty: p.y - (s * t0.x + c * t0.y) };
+      let ok = true;
+      for (let j = 1; j < userTiles.length; j++) {
+        const m = mapTile(emb, userTiles[j]);
+        const idx = index.find(m.k, m.x, m.y);
+        if (idx < 0 || !index.interior[idx]) { ok = false; break; }
+      }
+      if (ok) out.push(emb);
+    }
+    return out;
+  }
+
+  function filterEmbeddings(index, embeddings, newTile) {
+    if (!Number.isInteger(newTile.k)) return [];
+    const out = [];
+    for (const emb of embeddings) {
+      const m = mapTile(emb, newTile);
+      const idx = index.find(m.k, m.x, m.y);
+      if (idx >= 0 && index.interior[idx]) out.push(emb);
+    }
+    return out;
+  }
+
+  // placements endorsed by at least one embedding; every one extends to a
+  // perfect patch. Returns [{k,x,y,cx,cy,support}]
+  function guidedCandidates(index, userTiles, embeddings) {
+    const placed = new Map();
+    for (const t of userTiles) {
+      placed.set(t.k + ":" + Math.round(t.x * 200) + "," + Math.round(t.y * 200), true);
+    }
+    const seen = new Map();
+    const out = [];
+    for (const emb of embeddings) {
+      const imageIdx = new Set();
+      let valid = true;
+      for (const t of userTiles) {
+        const m = mapTile(emb, t);
+        const idx = index.find(m.k, m.x, m.y);
+        if (idx < 0) { valid = false; break; }
+        imageIdx.add(idx);
+      }
+      if (!valid) continue;
+      for (const idx of imageIdx) {
+        for (const nIdx of index.neighbors[idx]) {
+          if (imageIdx.has(nIdx) || !index.interior[nIdx]) continue;
+          const u = unmapTile(emb, index.tiles[nIdx]);
+          const key = u.k + ":" + Math.round(u.x * 200) + "," + Math.round(u.y * 200);
+          if (placed.has(key)) continue;
+          const hit = seen.get(key);
+          if (hit) { hit.support++; continue; }
+          const cc = tileCentroid(u);
+          const cand = { k: u.k, x: u.x, y: u.y, cx: cc[0], cy: cc[1], support: 1 };
+          seen.set(key, cand);
+          out.push(cand);
+        }
+      }
+    }
+    return out;
+  }
+
   const SpectreCore = {
     PTS, N, CENTROID, CIRCUMRADIUS, COS, SIN, BULGE,
     tileVerts, tileCentroid, boundaryEdges, generateCandidates,
     curvedPath, sampleCurved, polysOverlap, pointInPoly, distToPolyBoundary, polyCentroid,
+    buildPatch, PatchIndex, computeEmbeddings, filterEmbeddings, guidedCandidates, mapTile, unmapTile,
   };
 
   if (typeof module !== "undefined" && module.exports) module.exports = SpectreCore;

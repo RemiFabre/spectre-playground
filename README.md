@@ -15,18 +15,26 @@ Interactive tiling of the [Spectre](https://arxiv.org/abs/2305.17743) (Smith, My
 Kaplan & Goodman-Strauss, 2023), the single shape that tiles the plane but only
 aperiodically.
 
-- **Guided mode** — a ghost tile follows your cursor and magnetically snaps to every
-  placement allowed by the real matching rule (edge-to-edge, odd edge to even edge,
-  rotations only, no overlaps — the curved edges make the rule visible: bumps only
-  nest into dents). Dashed outlines show all the valid options near your cursor.
-  Click to commit. Some locally valid choices still dead-end globally; that is the
-  point.
-- **Free mode** — stamp tiles anywhere, no rules, for making figures.
-- Right-drag (or quick right-click, or `R`) rotates the held piece, scroll zooms,
-  drag pans, erase mode removes tiles, undo with Cmd/Ctrl+Z. Colors either follow
-  tile orientation with a slow drift, or stay porcelain white.
+Three placement modes:
 
-The board is saved locally in your browser.
+- **guided** — only offers placements that provably extend to a perfect, hole-free
+  tiling. Every offer is checked against a 4401-tile master patch generated from the
+  Spectre's substitution rules: a placement is valid iff the whole figure still embeds
+  somewhere in that patch. The **worlds** counter shows how many embeddings survive —
+  every choice destroys worlds; that collapse is the information your figure encodes.
+- **local** — anything that merely fits its neighbours (edge-to-edge, odd edge to even
+  edge, rotations only, no overlap). Locally valid choices can still dead-end: watch
+  worlds hit zero when your patch leaves the true tiling.
+- **free** — stamp anywhere, no rules, for making figures.
 
-Built with vanilla JS on a single canvas. Geometry engine in `spectre.js`
-(tested by `test.cjs`, run with `node test.cjs`).
+Also: **auto** tiles a disc by itself (outside edge first, then inward), **save**
+copies a URL that replays the exact board, three palettes (**prisma**: one flowing
+psychedelic field across all tiles; **color**: hue follows tile orientation with slow
+drift; **white**: porcelain), erase mode, undo, pan/zoom. The ghost snaps magnetically
+to valid spots; right-drag rotates; the curved edges make the matching rule physical —
+a bump only nests into a dent.
+
+The board persists in your browser (and in saved URLs).
+
+Built with vanilla JS on a single canvas. Geometry + substitution engine in
+`spectre.js`; tests in `test.cjs` and `test-patch.cjs` (run with node).
