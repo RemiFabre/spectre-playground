@@ -311,6 +311,8 @@
 
   function commitTile(cand, opts) {
     const t = buildTile({ k: cand.k, x: cand.x, y: cand.y, born: performance.now() });
+    if (cand.hue !== undefined) t.hue = cand.hue; // optional per-tile color override
+    if (cand.fill) t.fill = cand.fill;
     state.tiles.push(t);
     state.undo.push({ type: "add" });
     state.placedEver++;
@@ -416,6 +418,10 @@
     return h - Math.floor(h);
   }
   function tileFill(t, now) {
+    if (t.fill) return t.fill;
+    if (t.hue !== undefined) {
+      return "hsl(" + t.hue + ", 62%, " + (56 + hash01(t.y, t.x) * 9) + "%)";
+    }
     if (state.palette === "white") {
       const v = 94 + hash01(t.x, t.y) * 3;
       return "hsl(45, 14%, " + v + "%)";
@@ -959,7 +965,7 @@
   function seed() { addTileRaw({ k: 0, x: 0, y: 0 }); }
   // debug/testing hook (INDEX/PATCH are swapped on expansion, hence getters)
   window.__spectre = {
-    state, ghost, toWorld, startAuto, stopAuto, ensureCapacity,
+    state, ghost, toWorld, startAuto, stopAuto, ensureCapacity, commitTile,
     get INDEX() { return INDEX; }, get PATCH() { return PATCH; },
     get PATCH_RADIUS() { return PATCH_RADIUS; },
   };
