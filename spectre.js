@@ -347,7 +347,11 @@
   ];
   const QUAD_IDX = [3, 5, 7, 11];
 
-  function buildPatch(iterations) {
+  // iterations must be EVEN (each substitution level mirrors; even counts restore
+  // chirality). cropRadius (optional): keep only tiles whose centroid lies within
+  // that distance of the patch centroid — a disc cut from a valid tiling is still
+  // a valid patch, and capacity only depends on the radius.
+  function buildPatch(iterations, cropRadius) {
     if (iterations === undefined) iterations = 4;
     const quad0 = QUAD_IDX.map((i) => PTS[i].slice());
     // base generation
@@ -413,7 +417,22 @@
       }
       for (let i = 0; i < node.children.length; i++) walk(node.children[i], mulT(T, node.transforms[i]));
     })(tiles["Delta"], IDENT_T);
-    return out;
+    if (!cropRadius) return out;
+    let cx = 0, cy = 0;
+    const cents = out.map((t) => tileCentroid(t));
+    for (const c of cents) { cx += c[0]; cy += c[1]; }
+    cx /= out.length; cy /= out.length;
+    return out.filter((t, i) => Math.hypot(cents[i][0] - cx, cents[i][1] - cy) <= cropRadius);
+  }
+
+  function patchRadius(patchTiles) {
+    let cx = 0, cy = 0;
+    const cents = patchTiles.map((t) => tileCentroid(t));
+    for (const c of cents) { cx += c[0]; cy += c[1]; }
+    cx /= patchTiles.length; cy /= patchTiles.length;
+    let r = 0;
+    for (const c of cents) r = Math.max(r, Math.hypot(c[0] - cx, c[1] - cy));
+    return r;
   }
 
   // ---- patch index + cluster embeddings -------------------------------------
@@ -424,66 +443,68 @@
   // one surviving embedding endorses — so every offer extends to a perfect patch.
   const QCELL = 0.05, QTOL = 1e-3;
 
+  const CINV = 1 / QCELL;        // cells per unit
+  const COFF = 1 << 20;          // offset so cell indices are positive
+  const CSPAN = 1 << 21;         // cell index span per dimension
+
   function PatchIndex(patchTiles) {
+    const M = patchTiles.length;
     this.tiles = patchTiles;
-    this.byCell = new Map(); // "k:cx,cy" -> [indices]
-    for (let i = 0; i < patchTiles.length; i++) {
+    // tile pose lookup: numeric key (k, cellx, celly) -> [indices]
+    this.byCell = new Map();
+    for (let i = 0; i < M; i++) {
       const t = patchTiles[i];
-      const key = t.k + ":" + Math.floor(t.x / QCELL) + "," + Math.floor(t.y / QCELL);
-      if (!this.byCell.has(key)) this.byCell.set(key, []);
-      this.byCell.get(key).push(i);
+      const key = (t.k * CSPAN + (Math.floor(t.x * CINV) + COFF)) * CSPAN + (Math.floor(t.y * CINV) + COFF);
+      const arr = this.byCell.get(key);
+      if (arr) arr.push(i); else this.byCell.set(key, [i]);
     }
-    // adjacency via shared edge midpoints
-    const midMap = new Map();
-    this.neighbors = patchTiles.map(() => []);
-    for (let i = 0; i < patchTiles.length; i++) {
+    // adjacency via shared edge midpoints; interior = all 14 edges glued.
+    // Edge midpoints stored flat; matching pairs found via numeric spatial hash.
+    const midMap = new Map(); // cellKey -> array of edge ids (unmatched so far)
+    const mx = new Float64Array(M * N), my = new Float64Array(M * N);
+    const glued = new Int8Array(M);
+    this.neighbors = new Array(M);
+    for (let i = 0; i < M; i++) this.neighbors[i] = [];
+    for (let i = 0; i < M; i++) {
       const vs = tileVerts(patchTiles[i]);
       for (let e = 0; e < N; e++) {
         const a = vs[e], b = vs[(e + 1) % N];
-        const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
-        const kx = Math.floor(mx / QCELL), ky = Math.floor(my / QCELL);
+        const id = i * N + e;
+        const x = (a[0] + b[0]) / 2, y = (a[1] + b[1]) / 2;
+        mx[id] = x; my[id] = y;
+        const kx = Math.floor(x * CINV) + COFF, ky = Math.floor(y * CINV) + COFF;
         let matched = false;
-        for (let ox = -1; ox <= 1 && !matched; ox++) for (let oy = -1; oy <= 1 && !matched; oy++) {
-          const arr = midMap.get((kx + ox) + "," + (ky + oy));
-          if (!arr) continue;
-          for (const o of arr) {
-            if (Math.abs(o.mx - mx) < QTOL && Math.abs(o.my - my) < QTOL) {
-              this.neighbors[i].push(o.i);
-              this.neighbors[o.i].push(i);
-              matched = true; break;
+        for (let ox = -1; ox <= 1 && !matched; ox++) {
+          for (let oy = -1; oy <= 1 && !matched; oy++) {
+            const arr = midMap.get((kx + ox) * CSPAN + (ky + oy));
+            if (!arr) continue;
+            for (let j = 0; j < arr.length; j++) {
+              const o = arr[j];
+              if (Math.abs(mx[o] - x) < QTOL && Math.abs(my[o] - y) < QTOL) {
+                const oi = (o / N) | 0;
+                this.neighbors[i].push(oi);
+                this.neighbors[oi].push(i);
+                glued[i]++; glued[oi]++;
+                arr[j] = arr[arr.length - 1]; arr.pop(); // edges pair up at most once
+                matched = true; break;
+              }
             }
           }
         }
-        const key = kx + "," + ky;
-        if (!midMap.has(key)) midMap.set(key, []);
-        midMap.get(key).push({ mx, my, i });
+        if (!matched) {
+          const key = kx * CSPAN + ky;
+          const arr = midMap.get(key);
+          if (arr) arr.push(id); else midMap.set(key, [id]);
+        }
       }
     }
-    // interior = every one of the 14 edges is glued
-    this.interior = this.neighbors.map((ns, i) => {
-      const vs = tileVerts(patchTiles[i]);
-      let glued = 0;
-      for (let e = 0; e < N; e++) {
-        const a = vs[e], b = vs[(e + 1) % N];
-        const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
-        const kx = Math.floor(mx / QCELL), ky = Math.floor(my / QCELL);
-        let found = false;
-        for (let ox = -1; ox <= 1 && !found; ox++) for (let oy = -1; oy <= 1 && !found; oy++) {
-          const arr = midMap.get((kx + ox) + "," + (ky + oy));
-          if (!arr) continue;
-          for (const o of arr) {
-            if (o.i !== i && Math.abs(o.mx - mx) < QTOL && Math.abs(o.my - my) < QTOL) { found = true; break; }
-          }
-        }
-        if (found) glued++;
-      }
-      return glued === N;
-    });
+    this.interior = new Array(M);
+    for (let i = 0; i < M; i++) this.interior[i] = glued[i] === N;
   }
   PatchIndex.prototype.find = function (k, x, y) {
-    const kx = Math.floor(x / QCELL), ky = Math.floor(y / QCELL);
+    const kx = Math.floor(x * CINV) + COFF, ky = Math.floor(y * CINV) + COFF;
     for (let ox = -1; ox <= 1; ox++) for (let oy = -1; oy <= 1; oy++) {
-      const arr = this.byCell.get(k + ":" + (kx + ox) + "," + (ky + oy));
+      const arr = this.byCell.get((k * CSPAN + (kx + ox)) * CSPAN + (ky + oy));
       if (!arr) continue;
       for (const i of arr) {
         const t = this.tiles[i];
@@ -580,7 +601,7 @@
     PTS, N, CENTROID, CIRCUMRADIUS, COS, SIN, BULGE,
     tileVerts, tileCentroid, boundaryEdges, generateCandidates,
     curvedPath, sampleCurved, polysOverlap, pointInPoly, distToPolyBoundary, polyCentroid,
-    buildPatch, PatchIndex, computeEmbeddings, filterEmbeddings, guidedCandidates, mapTile, unmapTile,
+    buildPatch, patchRadius, PatchIndex, computeEmbeddings, filterEmbeddings, guidedCandidates, mapTile, unmapTile,
   };
 
   if (typeof module !== "undefined" && module.exports) module.exports = SpectreCore;

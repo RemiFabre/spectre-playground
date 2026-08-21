@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>how the Spectre playground works</title>
+<meta name="description" content="The algorithm behind the guided mode of the Spectre playground: substitution rules, patch embeddings, and why (and when) it finds every valid placement.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #12151f; --fog: #9aa0b4; --bone: #f2efe7;
+    --hairline: rgba(255,255,255,0.12); --accent: #c9a0ff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--ink); color: var(--bone);
+    font-family: "Spline Sans Mono", ui-monospace, monospace;
+    font-size: 13.5px; line-height: 1.75;
+  }
+  main { max-width: 680px; margin: 0 auto; padding: 48px 24px 96px; }
+  h1 {
+    font-family: "Instrument Serif", serif; font-style: italic; font-weight: 400;
+    font-size: 40px; line-height: 1.1; margin-bottom: 6px;
+  }
+  .back { font-size: 11px; letter-spacing: 0.12em; color: var(--fog); text-decoration: none; }
+  .back:hover { color: var(--bone); }
+  h2 {
+    font-family: "Instrument Serif", serif; font-style: italic; font-weight: 400;
+    font-size: 25px; margin: 44px 0 12px;
+  }
+  p { margin: 12px 0; color: #d6d3c9; }
+  b { color: var(--bone); }
+  a { color: var(--accent); }
+  ul, ol { margin: 12px 0 12px 22px; color: #d6d3c9; }
+  li { margin: 7px 0; }
+  .tag {
+    display: inline-block; font-size: 10px; letter-spacing: 0.1em; border-radius: 4px;
+    padding: 1px 7px; margin-right: 8px; vertical-align: 1px; white-space: nowrap;
+  }
+  .proven  { background: #1d3a2a; color: #8fe3ae; }
+  .conf    { background: #1d2c3a; color: #8fc6e3; }
+  .heur    { background: #3a331d; color: #e3cf8f; }
+  .unknown { background: #3a1d2a; color: #e38fae; }
+  .claims p { margin: 14px 0; }
+  .note {
+    border-left: 2px solid var(--hairline); padding: 2px 0 2px 16px;
+    color: var(--fog); margin: 16px 0;
+  }
+  hr { border: 0; border-top: 1px solid var(--hairline); margin: 40px 0; }
+  .refs { font-size: 12px; color: var(--fog); }
+  .refs li { margin: 6px 0; }
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="./" >&larr; back to the playground</a>
+  <h1>how the guided mode works</h1>
+  <p class="note">
+    This page explains the algorithm behind the playground and the mathematics it leans on.
+    Each claim is labelled: <span class="tag proven">proven</span> published results,
+    <span class="tag conf">confident</span> standard consequences we believe are correct,
+    <span class="tag heur">heuristic</span> engineering choices, and
+    <span class="tag unknown">unknown</span> things we could not verify. If you spot an
+    error in the reasoning, we genuinely want to hear about it.
+  </p>
+
+  <h2>the tile</h2>
+  <p>
+    The Spectre (Smith, Myers, Kaplan &amp; Goodman-Strauss, 2023) is an
+    <b>aperiodic monotile</b>: a single shape whose same-handed copies tile the whole
+    plane, and every such tiling is non-periodic — it never slides onto itself. The
+    playground uses its equilateral form, Tile(1,1), a 14-sided polygon with unit edges.
+    Drawn with curved edges, the matching rule becomes physical: every edge is either a
+    bump or a dent, and a bump only nests into a dent. Combinatorially this is the rule
+    that an odd-numbered edge may only be glued to an even-numbered edge, with rotations
+    only (multiples of 30&deg;), never reflections.
+  </p>
+
+  <h2>the three modes</h2>
+  <p>
+    <b>free</b> stamps tiles anywhere, no rules. <b>local</b> offers every placement
+    that fits its immediate neighbours: edge-to-edge, bump-into-dent, no overlap. Local
+    validity is not enough — you can follow it faithfully and still build a figure that
+    can never be completed to a full tiling of the plane. <b>guided</b> is the mode this
+    page is about: it only offers placements that provably extend to a perfect,
+    hole-free tiling.
+  </p>
+
+  <h2>the algorithm (route A: patch embeddings)</h2>
+  <p>
+    The discovery papers prove aperiodicity through a <b>substitution system</b>: nine
+    cluster types ("metatiles") together with rules for expanding each cluster into a
+    configuration of the others. Iterating the rules from a seed produces arbitrarily
+    large patches of a genuine Spectre tiling — each substitution level mirrors the
+    configuration, so an even number of iterations yields a patch of same-handed
+    spectres. The playground precomputes one such <b>master patch</b> (level&nbsp;4:
+    4,401 tiles; grown on demand from level&nbsp;6, cropped to the needed radius, up to
+    ~150,000 tiles).
+  </p>
+  <p>
+    The board is then scored against this patch. An <b>embedding</b> is a rotation plus
+    translation that maps your entire figure onto tiles of the master patch. The app
+    maintains the set of all surviving embeddings — displayed as <b>worlds</b> — and a
+    candidate placement is offered exactly when at least one embedding endorses it
+    (i.e., figure + candidate still maps into the patch). Each tile you place simply
+    filters the surviving set, so the check is incremental and fast.
+  </p>
+
+  <h2>why this offers only valid placements</h2>
+  <p>
+    <span class="tag proven">proven</span> Anything guided mode offers embeds in the
+    master patch, and the master patch is a piece of a real tiling that extends to the
+    infinite plane (keep substituting). So no offer is ever wrong. Guided mode has
+    <b>no false positives</b>, at any scale.
+  </p>
+
+  <h2>why this offers <i>every</i> valid placement</h2>
+  <p>The interesting direction is completeness: could a placement be genuinely valid —
+  extendable to an infinite tiling — yet missing from the master patch? The argument
+  that it cannot (while the patch is big enough) has three steps.</p>
+  <ol>
+    <li>
+      <span class="tag proven">proven</span> <b>Every Spectre tiling is hierarchical.</b>
+      The aperiodicity proof works by showing that any whole-plane tiling by Spectres
+      can be de-substituted — grouped back into metatiles, and those into supertiles,
+      uniquely, level after level. There are no "rogue" tilings outside the substitution
+      hierarchy.
+    </li>
+    <li>
+      <span class="tag conf">confident</span> <b>All Spectre tilings look alike
+      locally.</b> Expand any of the nine metatile types a few levels and it contains
+      copies of all nine (the substitution is primitive). Consequently a level-n
+      supertile of any type occurs in <i>every</i> tiling, scattered with positive
+      density — and every copy is internally identical. Now take any valid finite figure
+      F: it lives inside some tiling, hence inside (or across a few) supertiles of a
+      high enough level; those supertiles recur in every tiling; therefore <b>F occurs in
+      every Spectre tiling</b>, repeatedly, with a recurrence distance R that grows only
+      linearly with F's size. This "local indistinguishability / repetitivity" is the
+      standard structure theory of primitive substitution tilings applied to the
+      Spectre; the long-range-order literature on the Spectre supports it.
+    </li>
+    <li>
+      <span class="tag conf">confident</span> <b>One big-enough window therefore contains
+      everything.</b> The master patch is a window cut from a real tiling. If its radius
+      comfortably exceeds the recurrence distance R for figures of the current size,
+      then at least one copy of every valid figure of that size lies wholly inside the
+      window — and the embedding search finds it. The patch is not an enumeration of
+      tilings; it is a sample large enough that every small legal configuration appears
+      in it somewhere.
+    </li>
+  </ol>
+  <p>
+    <span class="tag heur">heuristic</span> The playground enforces
+    <b>patch&nbsp;radius&nbsp;&ge;&nbsp;3&nbsp;&times;&nbsp;figure&nbsp;diameter</b>,
+    expanding the patch automatically when a figure approaches the margin.
+    <span class="tag unknown">unknown</span> The published quantitative repetitivity
+    constant for Spectre tilings — the exact factor that would make the margin a proven
+    bound rather than a safe engineering choice — is not something we have verified.
+    If the hard cap on patch size is ever reached (figures thousands of tiles across),
+    the app says so on screen instead of silently degrading.
+  </p>
+  <p class="note">
+    There is also a patch-free exact method (route B): run the de-substitution on the
+    player's figure itself, tracking the finitely many consistent groupings at the
+    figure's boundary. It removes the margin constant entirely, at the cost of much
+    trickier boundary bookkeeping. The patch method was chosen for simplicity and
+    testability.
+  </p>
+
+  <h2>what "worlds" means — and does not mean</h2>
+  <p>
+    <b>worlds</b> counts the surviving embeddings of your figure into the current master
+    patch. Its early collapse is meaningful: each genuinely free choice you make
+    destroys embeddings, and that destruction is the information your figure encodes —
+    a growing prefix of the tile's hierarchical "address" (which child of which
+    supertile of which super-supertile…). A photograph of a figure determines such an
+    address prefix; a bigger photograph determines more digits.
+  </p>
+  <p>
+    What worlds does <i>not</i> measure: the number of ways your figure can be continued.
+    <span class="tag proven">proven</span> Every valid finite figure extends to
+    uncountably many distinct infinite tilings — the choice never runs out, no matter
+    how much you tile. And because all tilings contain identical copies of every small
+    figure, no finite figure ever determines "which" infinite tiling you are in. So
+    "worlds&nbsp;=&nbsp;1" late in a long game means your figure's position within the
+    finite patch is pinned — an artifact of the window's size, not a statement that the
+    tiling's future has become forced.
+  </p>
+
+  <h2>claims at a glance</h2>
+  <div class="claims">
+    <p><span class="tag proven">proven</span> the Spectre is a chiral aperiodic monotile; every tiling de-substitutes uniquely into supertiles.</p>
+    <p><span class="tag proven">proven</span> guided offers are always valid (they embed in a real patch that extends to the plane).</p>
+    <p><span class="tag conf">confident</span> the substitution is primitive; hence all tilings are locally indistinguishable and repetitive, and a large-enough window contains every small legal figure.</p>
+    <p><span class="tag conf">confident</span> therefore guided mode misses nothing while the patch margin holds.</p>
+    <p><span class="tag heur">heuristic</span> the specific margin (patch radius &ge; 3&times; figure diameter) and the on-demand growth schedule.</p>
+    <p><span class="tag unknown">unknown</span> the explicit repetitivity constant for Spectre tilings; whether a simple no-lookahead local growth rule exists for the Spectre (for Penrose tilings, naive local growth famously dead-ends).</p>
+  </div>
+
+  <h2>implementation notes</h2>
+  <ul>
+    <li>Everything runs client-side in vanilla JS on one canvas; the geometry and
+      substitution engine is <a href="spectre.js">spectre.js</a>, with node test suites
+      (<a href="test.cjs">test.cjs</a>, <a href="test-patch.cjs">test-patch.cjs</a>)
+      covering the polygon, the matching rule, the patch (parity of all ~29,000 glued
+      edges, no overlaps), and guided growth (hundreds of random guided placements never
+      dead-end; random local placements provably do).</li>
+    <li>The local matching rule (odd edge to even edge) is implemented independently of
+      the patch, and a test asserts guided candidates are always a subset of local ones.</li>
+    <li>The <b>save</b> button serializes the exact board into the URL fragment
+      (deflate + base64url), so a figure is a shareable, replayable code.</li>
+    <li>The <b>auto</b> button picks one surviving embedding at random and fills a disc
+      from its outer ring inward — a deliberate cheat that only the hierarchy makes safe.</li>
+  </ul>
+
+  <hr>
+  <h2>references</h2>
+  <ul class="refs">
+    <li>D. Smith, J. S. Myers, C. S. Kaplan, C. Goodman-Strauss, <a href="https://arxiv.org/abs/2303.10798">An aperiodic monotile</a> (2023) — the Hat.</li>
+    <li>D. Smith, J. S. Myers, C. S. Kaplan, C. Goodman-Strauss, <a href="https://arxiv.org/abs/2305.17743">A chiral aperiodic monotile</a> (2023) — the Spectre and its substitution system.</li>
+    <li>C. S. Kaplan, <a href="https://cs.uwaterloo.ca/~csk/spectre/">the Spectre page</a>.</li>
+    <li>S. Tatham, <a href="https://www.chiark.greenend.org.uk/~sgtatham/quasiblog/aperiodic-spectre/">Combinatorial coordinates for the aperiodic Spectre tiling</a> — the hierarchical addressing scheme.</li>
+    <li>On long-range order and quasicrystalline structure of Spectre tilings: <a href="https://arxiv.org/abs/2411.15503">arXiv:2411.15503</a>.</li>
+    <li>Substitution rules ported from <a href="https://github.com/reversi-fun/symbolic-spectre-tiles">reversi-fun/symbolic-spectre-tiles</a>, itself a port of the reference implementation.</li>
+  </ul>
+</main>
+</body>
+</html>

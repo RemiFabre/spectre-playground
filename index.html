@@ -123,8 +123,8 @@
   <button id="b-add" class="on" title="click to place tiles">add</button>
   <button id="b-erase" title="click tiles to remove them">erase</button>
   <span class="sep"></span>
-  <button id="b-prisma" class="on" title="one flowing pattern across all tiles">prisma</button>
-  <button id="b-color" title="colors follow orientation, slowly drifting">color</button>
+  <button id="b-prisma" title="one flowing pattern across all tiles">prisma</button>
+  <button id="b-color" class="on" title="colors follow orientation, slowly drifting">color</button>
   <button id="b-white" title="plain porcelain tiles">white</button>
   <span class="sep"></span>
   <button id="b-auto" title="auto-tile a disc, edges first (guided)">auto</button>
@@ -153,6 +153,10 @@
       watch worlds hit zero when you paint yourself out of the true tiling. <b>free</b> has
       no rules at all.
     </p>
+    <p class="lead">
+      <a href="about.html" target="_blank" rel="noopener">Read the full explanation of the
+      algorithm and the mathematics behind it →</a>
+    </p>
     <table>
       <tr><td>place</td><td>move the ghost near an edge; it snaps to valid spots — click to commit</td></tr>
       <tr><td>rotate</td><td>right-drag, quick right-click, R, or the &#10227; button</td></tr>
@@ -179,10 +183,16 @@
   const helpEl = document.getElementById("help");
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  // master patch: a provably correct aperiodic tiling from the substitution rules
-  const PATCH = S.buildPatch(4);
-  const INDEX = new S.PatchIndex(PATCH);
-  const INTERIOR_COUNT = INDEX.interior.filter(Boolean).length;
+  // master patch: a provably correct aperiodic patch from the substitution rules.
+  // It grows on demand: guided mode is guaranteed complete only while the patch
+  // radius comfortably exceeds the figure's size (see about.html), so whenever the
+  // figure approaches the margin we rebuild from a deeper substitution level.
+  let PATCH = S.buildPatch(4);
+  let INDEX = new S.PatchIndex(PATCH);
+  let PATCH_RADIUS = S.patchRadius(PATCH);
+  const PATCH_MARGIN = 3;         // require patch radius >= 3 x figure diameter
+  const PATCH_MAX_RADIUS = 1000;  // level-6 crop cap (~150k tiles)
+  let upgrading = false;
 
   // ---- state ----------------------------------------------------------------
   const state = {
@@ -191,7 +201,7 @@
     embeddings: null,     // null = empty board (unconstrained); [] = impossible
     mode: "guided",       // guided | local | free
     tool: "add",          // add | erase
-    palette: "prisma",    // prisma | color | white
+    palette: "color",     // color | prisma | white
     view: { scale: 78, ox: 0, oy: 0 },
     undo: [],
     placedEver: 0,
@@ -252,7 +262,7 @@
       if (d && Array.isArray(d.tiles) && d.tiles.length) {
         for (const [k, x, y] of d.tiles) addTileRaw({ k, x, y });
         state.mode = ["guided", "local", "free"].includes(d.mode) ? d.mode : "guided";
-        state.palette = ["prisma", "color", "white"].includes(d.palette) ? d.palette : "prisma";
+        state.palette = ["prisma", "color", "white"].includes(d.palette) ? d.palette : "color";
         state.placedEver = d.placedEver || d.tiles.length;
         if (d.view && d.view.scale) state.view = d.view;
         return true;
@@ -319,6 +329,32 @@
     refresh();
   }
 
+  // Grow the master patch when the figure gets big enough to threaten the
+  // completeness margin. Synchronous rebuild (rare, ~1-4 s); hint shown first.
+  function ensureCapacity(figDiam, done) {
+    const need = PATCH_MARGIN * figDiam;
+    if (need <= PATCH_RADIUS) { if (done) done(); return; }
+    if (PATCH_RADIUS >= PATCH_MAX_RADIUS) {
+      setHint("beyond the guaranteed range — guided mode may now miss rare options", 6000);
+      if (done) done();
+      return;
+    }
+    if (upgrading) return;
+    upgrading = true;
+    setHint("figure is getting large — expanding the master patch (a few seconds)…");
+    setTimeout(() => {
+      const R = Math.min(PATCH_MAX_RADIUS, Math.max(3.5 * figDiam, PATCH_RADIUS * 2, 400));
+      PATCH = S.buildPatch(6, R);
+      INDEX = new S.PatchIndex(PATCH);
+      PATCH_RADIUS = S.patchRadius(PATCH);
+      state.embeddings = state.tiles.length ? S.computeEmbeddings(INDEX, plainTiles()) : null;
+      upgrading = false;
+      refresh();
+      setHint("master patch expanded to " + PATCH.length.toLocaleString() + " tiles — guarantee restored", 5000);
+      if (done) done();
+    }, 60);
+  }
+
   function refresh() {
     if (state.mode === "guided" && state.tiles.length) {
       state.candidates = state.embeddings && state.embeddings.length
@@ -359,6 +395,7 @@
       hintEl.classList.add("gone");
     }
     dirtySave = true;
+    if (!upgrading && state.mode !== "free" && state.tiles.length) ensureCapacity(2 * cluster.r);
   }
 
   // ---- view -----------------------------------------------------------------
@@ -425,22 +462,6 @@
       const g = ctx.createConicGradient(t * 0.1 * TAU, cluster.cx, cluster.cy);
       for (let i = 0; i <= 12; i++) {
         g.addColorStop(i / 12, "hsla(" + ((i * 30 + t * 30) % 360) + ", 100%, 55%, " + (i % 2 ? 0.24 : 0.03) + ")");
-      }
-      ctx.fillStyle = g;
-      ctx.fillRect(bx, by, bw, bh);
-    }
-    // breathing rings, drifting outward through the tiles
-    {
-      const g = ctx.createRadialGradient(cluster.cx, cluster.cy, 0, cluster.cx, cluster.cy, R * 1.35);
-      const nRings = 7;
-      const phase = reduceMotion ? 0 : (t * 0.045) % (1 / nRings);
-      for (let i = 0; i < nRings; i++) {
-        const p = i / nRings + phase;
-        if (p >= 1) continue;
-        const hue = (i * 51 + t * 20) % 360;
-        g.addColorStop(Math.max(0, p - 0.012), "hsla(0, 0%, 0%, 0)");
-        g.addColorStop(p, "hsla(" + hue + ", 100%, 62%, 0.30)");
-        g.addColorStop(Math.min(1, p + 0.012), "hsla(0, 0%, 0%, 0)");
       }
       ctx.fillStyle = g;
       ctx.fillRect(bx, by, bw, bh);
@@ -623,6 +644,7 @@
   }
   function startAuto() {
     if (auto) { stopAuto(false); return; }
+    if (upgrading) return;
     if (state.mode !== "guided") { state.mode = "guided"; syncBar(); }
     if (!state.tiles.length) {
       const [wx, wy] = toWorld(innerWidth / 2, innerHeight / 2);
@@ -635,10 +657,16 @@
         return;
       }
     }
-    const emb = state.embeddings[Math.floor(Math.random() * state.embeddings.length)];
     const rVis = Math.min(innerWidth, innerHeight) / (2 * state.view.scale) * 0.85;
     const rMin = Math.sqrt((55 * TILE_AREA) / Math.PI); // at least ~55 tiles
     const R = Math.min(20, Math.max(rVis, rMin, cluster.r * 1.3 + 2));
+    // make sure the finished disc still sits inside the completeness margin
+    const needDiam = 2 * R + 2 * cluster.r + 2;
+    if (PATCH_MARGIN * needDiam > PATCH_RADIUS && PATCH_RADIUS < PATCH_MAX_RADIUS) {
+      ensureCapacity(needDiam, startAuto);
+      return;
+    }
+    const emb = state.embeddings[Math.floor(Math.random() * state.embeddings.length)];
     const fitScale = Math.min(innerWidth, innerHeight) / (2 * (R + 1.5));
     if (fitScale < state.view.scale) viewTween = { scale: fitScale, cx: cluster.cx, cy: cluster.cy };
     const placedKeys = new Set(state.tiles.map((t) => t.k + ":" + Math.round(t.x * 200) + "," + Math.round(t.y * 200)));
@@ -909,7 +937,12 @@
 
   // ---- boot -----------------------------------------------------------------
   function seed() { addTileRaw({ k: 0, x: 0, y: 0 }); }
-  window.__spectre = { state, ghost, toWorld, INDEX, PATCH, startAuto, stopAuto }; // debug/testing hook
+  // debug/testing hook (INDEX/PATCH are swapped on expansion, hence getters)
+  window.__spectre = {
+    state, ghost, toWorld, startAuto, stopAuto, ensureCapacity,
+    get INDEX() { return INDEX; }, get PATCH() { return PATCH; },
+    get PATCH_RADIUS() { return PATCH_RADIUS; },
+  };
   resize();
 
   (async function boot() {

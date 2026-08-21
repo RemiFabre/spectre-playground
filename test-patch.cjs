@@ -135,5 +135,20 @@ console.log("     index built in " + (Date.now() - t1) + "ms");
   check("random local growth can leave the true tiling (worlds -> 0)", trapped);
 }
 
+// cropped deeper patch (the on-demand growth path)
+{
+  const t2 = Date.now();
+  const p6 = S.buildPatch(6, 150);
+  const idx6 = new S.PatchIndex(p6);
+  const r = S.patchRadius(p6);
+  console.log("     cropped level-6 R=150: " + p6.length + " tiles, radius " + r.toFixed(0) + ", " + (Date.now() - t2) + "ms");
+  check("cropped patch has sane size and radius", p6.length > 5000 && r <= 151, [p6.length, r]);
+  check("cropped patch all unreflected", p6.every((t) => Math.abs(t.det - 1) < 1e-9));
+  const embs6 = S.computeEmbeddings(idx6, [{ k: 0, x: 0, y: 0 }]);
+  check("cropped patch yields embeddings", embs6.length > 4000, embs6.length);
+  const cands6 = S.guidedCandidates(idx6, [{ k: 0, x: 0, y: 0 }], embs6);
+  check("cropped-patch candidates match level-4 count (25)", cands6.length === 25, cands6.length);
+}
+
 console.log(failures === 0 ? "\nALL PATCH TESTS PASSED" : "\n" + failures + " FAILURES");
 process.exit(failures === 0 ? 0 : 1);
