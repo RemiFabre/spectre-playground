@@ -39,13 +39,13 @@ Also:
 ## The loop
 
 <p align="center">
-  <img src="media/E24-final-rise.gif" width="420" alt="The sunset mountain builds itself, the camera dives below to a pi world that dissolves, and the loop restarts">
+  <img src="media/spectre-loop.gif" width="420" alt="The sunset mountain builds itself, the camera dives below to a pi world that dissolves, and the loop restarts">
 </p>
 
 A sunset mountain of spectres builds itself; the camera orbits it, dives underneath,
 and finds a second world hanging below: the letter pi, dissolving tile by tile until
 only a gold keystone remains. Watch it
-[with its soundtrack](media/E24-final-rise.mp4) (every note is synthesized in code
+[with its soundtrack](media/spectre-loop.mp4) (every note is synthesized in code
 and locked to a tile event). The scripts that made it, and every iteration along the
 way, live in [`generation/`](generation/).
 

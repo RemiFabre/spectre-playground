@@ -77,6 +77,32 @@ for (const t of tiles) {
       new THREE.LineBasicMaterial({ color: 0x0d0f17 })));
   }
 }
+// placement ripples: an expanding, fading ring on the tile's top face,
+// advanced one frame (1/18 s) per captured frame by __frame()
+const pulses = [];
+const pulseGeo = new THREE.RingGeometry(0.80, 1.0, 48);
+window.__pulse = (i) => {
+  const tt = tiles[i];
+  const c = S.tileCentroid({ k: tt.k, x: tt.x, y: tt.y });
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthWrite: false });
+  const m = new THREE.Mesh(pulseGeo, mat);
+  m.position.set(c[0], -c[1], tt.h + 0.06);
+  m.renderOrder = 10;
+  scene.add(m);
+  pulses.push({ m, age: 0 });
+};
+window.__frame = () => {
+  for (let q = pulses.length - 1; q >= 0; q--) {
+    const p = pulses[q];
+    p.age += 1 / 18;
+    const a = p.age / 0.55;
+    if (a >= 1) { scene.remove(p.m); p.m.material.dispose(); pulses.splice(q, 1); continue; }
+    const r = 0.55 + a * 1.8;
+    p.m.scale.set(r, r, 1);
+    p.m.material.opacity = 0.6 * (1 - a) * (1 - a);
+  }
+  window.__setCam(...lastCam);
+};
 let lastCam = [0, 0, 100];
 window.__reveal = (n) => window.__window(0, n);
 window.__window = (a, b) => {

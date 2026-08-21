@@ -49,8 +49,10 @@ sits on screen. ffmpeg muxes the WAV onto the video.
 - `spectre-core.js`: a copy of the repo's `spectre.js`, kept here so the scripts
   are self-contained.
 
-The final deliverable is `../media/E24-final-rise.mp4` (with sound) and
-`../media/E24-final-rise.gif` (silent).
+The final deliverable is `../media/spectre-loop.mp4` (with sound) and
+`../media/spectre-loop.gif` (silent). `capture-final.mjs` is the run that produced
+it: the placement ripples from the 2D app, recreated in 3D on every tile except the
+summit, which was always there.
 
 Note: these scripts are the working tools of an iterative session, kept close to
 how they ran. Expect to adjust paths and ports before reusing them.
