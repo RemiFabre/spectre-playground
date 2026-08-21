@@ -88,7 +88,7 @@
     hole-free tiling.
   </p>
 
-  <h2>the algorithm (route A: patch embeddings)</h2>
+  <h2>the algorithm: embedding into a master patch</h2>
   <p>
     The discovery papers prove aperiodicity through a <b>substitution system</b>: nine
     cluster types ("metatiles") together with rules for expanding each cluster into a
@@ -162,11 +162,11 @@
     the app says so on screen instead of silently degrading.
   </p>
   <p class="note">
-    There is also a patch-free exact method (route B): run the de-substitution on the
-    player's figure itself, tracking the finitely many consistent groupings at the
-    figure's boundary. It removes the margin constant entirely, at the cost of much
-    trickier boundary bookkeeping. The patch method was chosen for simplicity and
-    testability.
+    An alternative exact method exists that needs no master patch at all: run the
+    de-substitution on the player's figure itself, tracking the finitely many
+    consistent groupings at the figure's boundary. It would remove the margin constant
+    entirely, at the cost of much trickier boundary bookkeeping. The patch method was
+    chosen for simplicity and testability.
   </p>
 
   <h2>what "worlds" means — and does not mean</h2>

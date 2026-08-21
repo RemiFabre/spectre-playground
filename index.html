@@ -113,7 +113,7 @@
   <p id="sub">an aperiodic monotile &middot; n = 1</p>
 </div>
 
-<div id="hint">move near an edge — click when the ghost snaps &middot; right-drag rotates</div>
+<div id="hint">click when the ghost snaps &middot; hold + sweep to paint tiles &middot; right-drag rotates</div>
 
 <div id="bar">
   <button id="b-guided" class="on" title="only placements that provably extend to a perfect tiling">guided</button>
@@ -123,8 +123,8 @@
   <button id="b-add" class="on" title="click to place tiles">add</button>
   <button id="b-erase" title="click tiles to remove them">erase</button>
   <span class="sep"></span>
-  <button id="b-prisma" title="one flowing pattern across all tiles">prisma</button>
-  <button id="b-color" class="on" title="colors follow orientation, slowly drifting">color</button>
+  <button id="b-prisma" class="on" title="one flowing pattern across all tiles">prisma</button>
+  <button id="b-color" title="colors follow orientation, slowly drifting">color</button>
   <button id="b-white" title="plain porcelain tiles">white</button>
   <span class="sep"></span>
   <button id="b-auto" title="auto-tile a disc, edges first (guided)">auto</button>
@@ -159,9 +159,10 @@
     </p>
     <table>
       <tr><td>place</td><td>move the ghost near an edge; it snaps to valid spots — click to commit</td></tr>
+      <tr><td>paint</td><td>in guided mode, hold the button and sweep: every valid tile along your path is placed for you</td></tr>
       <tr><td>rotate</td><td>right-drag, quick right-click, R, or the &#10227; button</td></tr>
       <tr><td>erase</td><td>switch to erase, then click tiles</td></tr>
-      <tr><td>pan / zoom</td><td>drag / scroll (pinch on trackpad)</td></tr>
+      <tr><td>pan / zoom</td><td>middle-drag (one-finger drag on touch) / scroll to zoom</td></tr>
       <tr><td>undo</td><td>Cmd/Ctrl+Z</td></tr>
       <tr><td>auto</td><td>tiles a disc around your patch by itself — outside edge first, then inward</td></tr>
       <tr><td>save</td><td>copies a link encoding this exact board, to share or keep</td></tr>
@@ -201,7 +202,7 @@
     embeddings: null,     // null = empty board (unconstrained); [] = impossible
     mode: "guided",       // guided | local | free
     tool: "add",          // add | erase
-    palette: "color",     // color | prisma | white
+    palette: "prisma",    // prisma | color | white
     view: { scale: 78, ox: 0, oy: 0 },
     undo: [],
     placedEver: 0,
@@ -262,7 +263,7 @@
       if (d && Array.isArray(d.tiles) && d.tiles.length) {
         for (const [k, x, y] of d.tiles) addTileRaw({ k, x, y });
         state.mode = ["guided", "local", "free"].includes(d.mode) ? d.mode : "guided";
-        state.palette = ["prisma", "color", "white"].includes(d.palette) ? d.palette : "color";
+        state.palette = ["prisma", "color", "white"].includes(d.palette) ? d.palette : "prisma";
         state.placedEver = d.placedEver || d.tiles.length;
         if (d.view && d.view.scale) state.view = d.view;
         return true;
@@ -725,8 +726,26 @@
     drag = {
       sx: e.clientX, sy: e.clientY, panning: e.button === 1,
       button: e.button, ox0: state.view.ox, oy0: state.view.oy,
+      painted: 0, touch: e.pointerType === "touch",
     };
   });
+
+  // hold + sweep in guided mode: place every valid tile the cursor passes
+  function paintAt(sx, sy) {
+    if (state.mode !== "guided" || state.tool !== "add" || auto || upgrading) return;
+    if (!state.tiles.length) return;
+    const [wx, wy] = toWorld(sx, sy);
+    for (let pass = 0; pass < 4; pass++) {
+      let best = null, bestD = SNAP_R;
+      for (const c of state.candidates) {
+        const d = Math.hypot(c.cx - wx, c.cy - wy);
+        if (d < bestD) { bestD = d; best = c; }
+      }
+      if (!best) break;
+      commitTile(best);
+      drag.painted++;
+    }
+  }
 
   canvas.addEventListener("pointermove", (e) => {
     if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -751,14 +770,15 @@
     }
     if (drag) {
       const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
-      if (!drag.panning && (e.pointerType === "touch" ? Math.hypot(dx, dy) > 10 : Math.hypot(dx, dy) > 5)) {
-        drag.panning = true;
-      }
+      // panning: middle button, or one-finger drag on touch (no middle button there)
+      if (!drag.panning && drag.touch && Math.hypot(dx, dy) > 10) drag.panning = true;
       if (drag.panning) {
         viewTween = null;
         state.view.ox = drag.ox0 + dx;
         state.view.oy = drag.oy0 + dy;
         dirtySave = true;
+      } else if (drag.button === 0 && !drag.touch) {
+        paintAt(e.clientX, e.clientY);
       }
     }
     if (state.tool === "erase") {
@@ -788,9 +808,9 @@
       return;
     }
     if (!drag) return;
-    const wasPan = drag.panning;
+    const wasPan = drag.panning, painted = drag.painted;
     drag = null;
-    if (wasPan || auto) return;
+    if (wasPan || painted || auto) return;
 
     ghost.sx = e.clientX; ghost.sy = e.clientY;
     const [wx, wy] = toWorld(e.clientX, e.clientY);

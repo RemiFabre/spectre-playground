@@ -31,11 +31,12 @@ Three placement modes:
 - **free** — stamp anywhere, no rules, for making figures.
 
 Also: **auto** tiles a disc by itself (outside edge first, then inward), **save**
-copies a URL that replays the exact board, three palettes (**color**, the default: hue
-follows tile orientation with slow drift; **prisma**: one flowing psychedelic field
-across all tiles; **white**: porcelain), erase mode, undo, pan/zoom. The ghost snaps magnetically
-to valid spots; right-drag rotates; the curved edges make the matching rule physical —
-a bump only nests into a dent.
+copies a URL that replays the exact board, three palettes (**prisma**, the default: one
+flowing psychedelic field across all tiles; **color**: hue follows tile orientation
+with slow drift; **white**: porcelain), erase mode, undo, pan/zoom. The ghost snaps magnetically
+to valid spots; in guided mode you can also hold the button and sweep to paint every
+valid tile along your path. Right-drag rotates, middle-drag pans; the curved edges
+make the matching rule physical — a bump only nests into a dent.
 
 The board persists in your browser (and in saved URLs).
 
