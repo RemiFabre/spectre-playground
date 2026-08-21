@@ -60,7 +60,7 @@
     border: 1px solid var(--hairline); border-radius: 999px;
     padding: 5px 8px; max-width: calc(100vw - 16px); flex-wrap: wrap; justify-content: center;
   }
-  #bar .sep { width: 1px; height: 18px; background: var(--hairline); margin: 0 3px; }
+  #bar .sep { width: 1px; height: 22px; background: rgba(255, 255, 255, 0.28); margin: 0 6px; }
   #bar button {
     appearance: none; border: 0; background: transparent; color: var(--fog);
     font: 500 11px/1 "Spline Sans Mono", monospace; letter-spacing: 0.08em;
@@ -185,7 +185,8 @@
   <button id="b-rot" title="rotate the held piece (or right-drag, or R)">&#10227;</button>
   <button id="b-undo" title="undo (Cmd/Ctrl+Z)">undo</button>
   <button id="b-play" title="replay the whole build, like sheet music">&#9654;</button>
-  <button id="b-share" title="copy a link, publish to the public gallery, or browse it">share</button>
+  <button id="b-save" title="copy a replay link or publish to the public gallery">save</button>
+  <button id="b-browse" title="browse the public gallery">browse</button>
   <button id="b-clear" class="danger" title="start over">clear</button>
   <button id="b-help" title="about &amp; controls">?</button>
 </div>
@@ -249,7 +250,8 @@
       <tr><td>undo</td><td>Cmd/Ctrl+Z</td></tr>
       <tr><td>auto</td><td>tiles a disc around your patch by itself, outside edge first, then inward</td></tr>
       <tr><td>replay</td><td>&#9654; plays your build back like sheet music (loops, scrubbable). Click while paused to keep building from that moment</td></tr>
-      <tr><td>share</td><td>copy a replay link, publish your shape by name to the public gallery, or browse and load anyone's</td></tr>
+      <tr><td>save</td><td>copy a replay link, or publish your shape by name to the public gallery</td></tr>
+      <tr><td>browse</td><td>load anyone's published shape from the gallery</td></tr>
     </table>
     <p class="close">click anywhere to close</p>
   </div>
@@ -1116,10 +1118,16 @@
 
   // ---- share: link, publish, browse ----------------------------------------
   const sStatus = $("s-status");
-  $("b-share").onclick = () => {
+  $("b-save").onclick = () => {
     const was = sharePanel.classList.contains("open");
     closePopovers();
     if (!was) { sharePanel.classList.add("open"); sStatus.textContent = ""; }
+  };
+  $("b-browse").onclick = () => {
+    closePopovers();
+    sharePanel.classList.add("open");
+    sStatus.textContent = "";
+    loadGallery();
   };
   $("s-link").onclick = async () => {
     try {
@@ -1160,7 +1168,8 @@
     }
     btn.disabled = false;
   };
-  $("s-browse").onclick = async () => {
+  $("s-browse").onclick = () => loadGallery();
+  async function loadGallery() {
     const list = $("s-list");
     list.classList.add("open");
     list.textContent = "loading…";
