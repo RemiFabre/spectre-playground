@@ -1,5 +1,5 @@
 /* Spectre core geometry.
- * Tile(1,1) — the equilateral 14-gon underlying the Spectre aperiodic monotile
+ * Tile(1,1), the equilateral 14-gon underlying the Spectre aperiodic monotile
  * (Smith, Myers, Kaplan, Goodman-Strauss 2023).
  *
  * Matching rule implemented here (straight-edge equivalent of the curved Spectre):
@@ -270,7 +270,7 @@
   // ---- curved outline --------------------------------------------------------
   // Each unit edge becomes a cubic bezier bulging perpendicular to the edge.
   // Symmetric profile, sign alternating with edge parity: even edges bulge
-  // outward (left of travel), odd edges inward — so a bump nests into a dent
+  // outward (left of travel), odd edges inward, so a bump nests into a dent
   // exactly when parities are opposite, which is the Spectre matching rule.
   const BULGE = 0.22;
 
@@ -312,7 +312,7 @@
   // itself a port of the reference implementation). Transforms are [m00,m10,m01,m11,tx,ty]
   // (column-major 2x2 + translation). Each supertile level applies a y-axis mirror,
   // so an EVEN number of iterations yields a patch of unreflected spectres whose
-  // rotations are all multiples of 30 deg — a provably correct aperiodic patch.
+  // rotations are all multiples of 30 deg: a provably correct aperiodic patch.
   function trotT(deg) {
     const r = (deg * Math.PI) / 180;
     const c = Math.cos(r), s = Math.sin(r);
@@ -349,7 +349,7 @@
 
   // iterations must be EVEN (each substitution level mirrors; even counts restore
   // chirality). cropRadius (optional): keep only tiles whose centroid lies within
-  // that distance of the patch centroid — a disc cut from a valid tiling is still
+  // that distance of the patch centroid, a disc cut from a valid tiling is still
   // a valid patch, and capacity only depends on the radius.
   function buildPatch(iterations, cropRadius) {
     if (iterations === undefined) iterations = 4;
@@ -440,7 +440,7 @@
   // tile's neighbours? An embedding maps the user's plane into the patch plane by
   // rotation rho (x12) + translation; the guided mode keeps the set of embeddings
   // consistent with every placed tile, and only offers neighbours that at least
-  // one surviving embedding endorses — so every offer extends to a perfect patch.
+  // one surviving embedding endorses, so every offer extends to a perfect patch.
   const QCELL = 0.05, QTOL = 1e-3;
 
   const CINV = 1 / QCELL;        // cells per unit

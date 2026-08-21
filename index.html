@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>the Spectre — aperiodic monotile playground</title>
+<title>the Spectre, an aperiodic monotile playground</title>
 <meta name="description" content="Tile the Spectre, the aperiodic monotile. Guided mode only offers placements that provably extend to a perfect tiling; watch the number of possible worlds collapse as you choose.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -170,7 +170,7 @@
 
 <div id="bar">
   <button id="b-guided" class="on" title="only placements that provably extend to a perfect tiling">guided</button>
-  <button id="b-local" title="anything that locally fits — some choices dead-end">local</button>
+  <button id="b-local" title="anything that locally fits (some choices dead-end)">local</button>
   <button id="b-free" title="stamp anywhere, no rules">free</button>
   <span class="sep"></span>
   <button id="b-add" class="on" title="click to place tiles">add</button>
@@ -221,18 +221,18 @@
   <div class="card">
     <h2>the Spectre</h2>
     <p class="lead">
-      In 2023 a single shape was found that tiles the plane — but only aperiodically: the
+      In 2023 a single shape was found that tiles the plane, but only aperiodically: the
       pattern never repeats. Its curved edges make the matching rule physical: a bump only
       nests into a dent.
       <a href="https://arxiv.org/abs/2305.17743" target="_blank" rel="noopener">Smith, Myers, Kaplan &amp; Goodman-Strauss →</a>
     </p>
     <p class="lead">
       <b>guided</b> only offers placements that provably extend to a perfect, hole-free
-      tiling — they are checked against a 4400-tile master patch built from the Spectre's
+      tiling. They are checked against a 4400-tile master patch built from the Spectre's
       substitution rules. <b>worlds</b> counts how many places in that master tiling your
       patch could still be: every choice you make destroys worlds, which is the information
-      your figure encodes. <b>local</b> offers anything that merely fits its neighbours —
-      watch worlds hit zero when you paint yourself out of the true tiling. <b>free</b> has
+      your figure encodes. <b>local</b> offers anything that merely fits its neighbours.
+      Watch worlds hit zero when you paint yourself out of the true tiling. <b>free</b> has
       no rules at all.
     </p>
     <p class="lead">
@@ -240,15 +240,15 @@
       algorithm and the mathematics behind it →</a>
     </p>
     <table>
-      <tr><td>place</td><td>move the ghost near an edge; it snaps to valid spots — click to commit</td></tr>
+      <tr><td>place</td><td>move the ghost near an edge; it snaps to valid spots. Click to commit</td></tr>
       <tr><td>paint</td><td>in guided mode, hold the button and sweep: every valid tile along your path is placed for you</td></tr>
       <tr><td>rotate</td><td>right-drag, quick right-click, R, or the &#10227; button</td></tr>
       <tr><td>erase</td><td>switch to erase, then click tiles</td></tr>
       <tr><td>colors</td><td>&#127912; picks a brush: new tiles take that color, clicking a tile repaints it; "auto colors" returns to the palette</td></tr>
       <tr><td>pan / zoom</td><td>middle-drag (one-finger drag on touch) / scroll to zoom</td></tr>
       <tr><td>undo</td><td>Cmd/Ctrl+Z</td></tr>
-      <tr><td>auto</td><td>tiles a disc around your patch by itself — outside edge first, then inward</td></tr>
-      <tr><td>replay</td><td>&#9654; plays your build back like sheet music — loops, scrubbable; click while paused to keep building from that moment</td></tr>
+      <tr><td>auto</td><td>tiles a disc around your patch by itself, outside edge first, then inward</td></tr>
+      <tr><td>replay</td><td>&#9654; plays your build back like sheet music (loops, scrubbable). Click while paused to keep building from that moment</td></tr>
       <tr><td>share</td><td>copy a replay link, publish your shape by name to the public gallery, or browse and load anyone's</td></tr>
     </table>
     <p class="close">click anywhere to close</p>
@@ -434,13 +434,13 @@
     const need = PATCH_MARGIN * figDiam;
     if (need <= PATCH_RADIUS) { if (done) done(); return; }
     if (PATCH_RADIUS >= PATCH_MAX_RADIUS) {
-      setHint("beyond the guaranteed range — guided mode may now miss rare options", 6000);
+      setHint("beyond the guaranteed range. guided mode may now miss rare options", 6000);
       if (done) done();
       return;
     }
     if (upgrading) return;
     upgrading = true;
-    setHint("figure is getting large — expanding the master patch (a few seconds)…");
+    setHint("figure is getting large. expanding the master patch (a few seconds)…");
     setTimeout(() => {
       const R = Math.min(PATCH_MAX_RADIUS, Math.max(3.5 * figDiam, PATCH_RADIUS * 2, 400));
       PATCH = S.buildPatch(6, R);
@@ -449,7 +449,7 @@
       state.embeddings = state.tiles.length ? S.computeEmbeddings(INDEX, plainTiles()) : null;
       upgrading = false;
       refresh();
-      setHint("master patch expanded to " + PATCH.length.toLocaleString() + " tiles — guarantee restored", 5000);
+      setHint("master patch expanded to " + PATCH.length.toLocaleString() + " tiles. guarantee restored", 5000);
       if (done) done();
     }, 60);
   }
@@ -489,7 +489,7 @@
       ? sub.replace(/worlds = 0 ⚠/, '<span class="warn">worlds = 0</span>')
       : sub;
     if (state.tiles.length && state.embeddings && state.embeddings.length === 0 && state.mode !== "free") {
-      setHint("this patch no longer fits the infinite tiling — undo or erase", 5000);
+      setHint("this patch no longer fits the infinite tiling. undo or erase", 5000);
     } else if (state.placedEver >= 4) {
       hintEl.classList.add("gone");
     }
@@ -760,7 +760,7 @@
     document.getElementById("b-auto").textContent = "auto";
     document.getElementById("b-auto").classList.remove("busy");
     refresh();
-    if (finished) setHint("disc complete — " + state.tiles.length + " tiles", 4000);
+    if (finished) setHint("disc complete: " + state.tiles.length + " tiles", 4000);
   }
   function startAuto() {
     if (auto) { stopAuto(false); return; }
@@ -773,7 +773,7 @@
     if (!state.embeddings || !state.embeddings.length) {
       refresh();
       if (!state.embeddings || !state.embeddings.length) {
-        setHint("this patch can't extend to a perfect tiling — undo or clear first", 5000);
+        setHint("this patch can't extend to a perfect tiling. undo or clear first", 5000);
         return;
       }
     }
@@ -801,7 +801,7 @@
       if (placedKeys.has(key)) continue;
       targets.push({ tile: u, d });
     }
-    if (!targets.length) { setHint("nothing left to fill at this zoom — zoom out for a bigger disc", 4000); return; }
+    if (!targets.length) { setHint("nothing left to fill at this zoom. zoom out for a bigger disc", 4000); return; }
     targets.sort((a, b) => b.d - a.d); // outside edge first, then inward
     const btn = document.getElementById("b-auto");
     btn.textContent = "stop"; btn.classList.add("busy");
@@ -945,7 +945,7 @@
       }
       closePlayer();
       refresh();
-      setHint("continuing from here — the rest of the score was dropped", 3500);
+      setHint("continuing from here (the rest of the score was dropped)", 3500);
       return;
     }
 
@@ -1057,7 +1057,7 @@
     pToggle.innerHTML = player.playing ? "&#9208;" : "&#9654;";
   }
   function openPlayer() {
-    if (!state.tiles.length) { setHint("nothing to replay yet — place some tiles first", 3000); return; }
+    if (!state.tiles.length) { setHint("nothing to replay yet. place some tiles first", 3000); return; }
     stopAuto(false);
     closePopovers();
     player.open = true; player.playing = true; player.pos = 0; player.lastVis = -1;
@@ -1104,10 +1104,10 @@
     bb.classList.toggle("tinted", !!c);
     bb.style.setProperty("--brush", c || "transparent");
     for (const b of swWrap.children) b.classList.toggle("on", b.title === c);
-    if (c) setHint("brush on — new tiles take this color; click a tile to repaint it", 3500);
+    if (c) setHint("brush on: new tiles take this color; click a tile to repaint it", 3500);
   }
   $("brush-custom").oninput = (e) => setBrush(e.target.value);
-  $("brush-auto").onclick = () => { setBrush(null); setHint("brush off — colors follow the palette again", 2500); };
+  $("brush-auto").onclick = () => { setBrush(null); setHint("brush off: colors follow the palette again", 2500); };
   $("b-brush").onclick = () => {
     const was = brushPanel.classList.contains("open");
     closePopovers();
@@ -1126,8 +1126,8 @@
       const code = await encodeBoard();
       const url = location.origin + location.pathname + "#b=" + code;
       history.replaceState(null, "", "#b=" + code);
-      try { await navigator.clipboard.writeText(url); sStatus.textContent = "link copied — it replays this exact board"; }
-      catch (err) { sStatus.textContent = "board encoded in the address bar — copy the URL"; }
+      try { await navigator.clipboard.writeText(url); sStatus.textContent = "link copied. it replays this exact board"; }
+      catch (err) { sStatus.textContent = "board encoded in the address bar. copy the URL"; }
     } catch (err) { sStatus.textContent = "could not encode the board"; }
   };
   $("s-publish").onclick = async () => {
@@ -1147,14 +1147,14 @@
         const r = await fetch(INGEST + "/save", { method: "POST", body, signal: AbortSignal.timeout(12000) });
         const d = await r.json().catch(() => ({}));
         if (r.ok && d.ok) {
-          sStatus.innerHTML = "published — anyone can load “" + name + "” from the gallery · <a href=\"https://huggingface.co/datasets/" + DATASET + "\" target=\"_blank\" rel=\"noopener\">dataset</a>";
+          sStatus.innerHTML = "published. anyone can load “" + name + "” from the gallery · <a href=\"https://huggingface.co/datasets/" + DATASET + "\" target=\"_blank\" rel=\"noopener\">dataset</a>";
           published = true;
-        } else if (r.status === 409) { sStatus.textContent = "that name is already taken — pick another"; break; }
+        } else if (r.status === 409) { sStatus.textContent = "that name is already taken. pick another"; break; }
         else if (r.status === 400) { sStatus.textContent = "the archive refused this board (" + (d.reason || "invalid") + ")"; break; }
-        else if (r.status === 429) { sStatus.textContent = "the archive is busy — try again in a few minutes"; break; }
+        else if (r.status === 429) { sStatus.textContent = "the archive is busy. try again in a few minutes"; break; }
         else throw new Error("retry");
       } catch (err) {
-        if (attempt === 4) sStatus.textContent = "could not reach the archive — try again later";
+        if (attempt === 4) sStatus.textContent = "could not reach the archive. try again later";
         else await new Promise((ok) => setTimeout(ok, 6000));
       }
     }
@@ -1166,18 +1166,18 @@
     list.textContent = "loading…";
     try {
       const r = await fetch("https://huggingface.co/api/datasets/" + DATASET + "/tree/main/shapes");
-      if (r.status === 404) { list.textContent = "no shapes published yet — be the first"; return; }
+      if (r.status === 404) { list.textContent = "no shapes published yet. be the first"; return; }
       const files = await r.json();
       const names = files.map((f) => (/^shapes\/(.+)\.json$/.exec(f.path) || [])[1]).filter(Boolean).sort();
       list.textContent = "";
-      if (!names.length) { list.textContent = "no shapes published yet — be the first"; return; }
+      if (!names.length) { list.textContent = "no shapes published yet. be the first"; return; }
       for (const n of names) {
         const b = document.createElement("button");
         b.textContent = n;
         b.onclick = async () => {
           if (b.dataset.armed !== "1") {
             for (const o of list.children) { o.dataset.armed = ""; o.textContent = o.dataset.name || o.textContent; }
-            b.dataset.name = n; b.dataset.armed = "1"; b.textContent = n + " — load? (replaces your board)";
+            b.dataset.name = n; b.dataset.armed = "1"; b.textContent = n + ": load? (replaces your board)";
             return;
           }
           try {
@@ -1188,7 +1188,7 @@
             if (["prisma", "color", "white"].includes(d.board.p)) state.palette = d.board.p;
             state.embeddings = state.tiles.length ? S.computeEmbeddings(INDEX, plainTiles()) : null;
             refresh(); centerView(); syncBar(); closePopovers();
-            setHint("loaded “" + n + "” — press ▶ to watch it being built", 5000);
+            setHint("loaded “" + n + "”. press ▶ to watch it being built", 5000);
           } catch (err) { sStatus.textContent = "could not load that shape"; }
         };
         list.appendChild(b);

@@ -70,7 +70,7 @@
   <p>
     The Spectre (Smith, Myers, Kaplan &amp; Goodman-Strauss, 2023) is an
     <b>aperiodic monotile</b>: a single shape whose same-handed copies tile the whole
-    plane, and every such tiling is non-periodic — it never slides onto itself. The
+    plane, and every such tiling is non-periodic: it never slides onto itself. The
     playground uses its equilateral form, Tile(1,1), a 14-sided polygon with unit edges.
     Drawn with curved edges, the matching rule becomes physical: every edge is either a
     bump or a dent, and a bump only nests into a dent. Combinatorially this is the rule
@@ -82,7 +82,7 @@
   <p>
     <b>free</b> stamps tiles anywhere, no rules. <b>local</b> offers every placement
     that fits its immediate neighbours: edge-to-edge, bump-into-dent, no overlap. Local
-    validity is not enough — you can follow it faithfully and still build a figure that
+    validity is not enough. You can follow it faithfully and still build a figure that
     can never be completed to a full tiling of the plane. <b>guided</b> is the mode this
     page is about: it only offers placements that provably extend to a perfect,
     hole-free tiling.
@@ -93,7 +93,7 @@
     The discovery papers prove aperiodicity through a <b>substitution system</b>: nine
     cluster types ("metatiles") together with rules for expanding each cluster into a
     configuration of the others. Iterating the rules from a seed produces arbitrarily
-    large patches of a genuine Spectre tiling — each substitution level mirrors the
+    large patches of a genuine Spectre tiling. Each substitution level mirrors the
     configuration, so an even number of iterations yields a patch of same-handed
     spectres. The playground precomputes one such <b>master patch</b> (level&nbsp;4:
     4,401 tiles; grown on demand from level&nbsp;6, cropped to the needed radius, up to
@@ -102,7 +102,7 @@
   <p>
     The board is then scored against this patch. An <b>embedding</b> is a rotation plus
     translation that maps your entire figure onto tiles of the master patch. The app
-    maintains the set of all surviving embeddings — displayed as <b>worlds</b> — and a
+    maintains the set of all surviving embeddings, displayed as <b>worlds</b>, and a
     candidate placement is offered exactly when at least one embedding endorses it
     (i.e., figure + candidate still maps into the patch). Each tile you place simply
     filters the surviving set, so the check is incremental and fast.
@@ -117,14 +117,14 @@
   </p>
 
   <h2>why this offers <i>every</i> valid placement</h2>
-  <p>The interesting direction is completeness: could a placement be genuinely valid —
-  extendable to an infinite tiling — yet missing from the master patch? The argument
+  <p>The interesting direction is completeness: could a placement be genuinely valid (extendable
+  to an infinite tiling) yet missing from the master patch? The argument
   that it cannot (while the patch is big enough) has three steps.</p>
   <ol>
     <li>
       <span class="tag proven">proven</span> <b>Every Spectre tiling is hierarchical.</b>
       The aperiodicity proof works by showing that any whole-plane tiling by Spectres
-      can be de-substituted — grouped back into metatiles, and those into supertiles,
+      can be de-substituted, grouped back into metatiles, and those into supertiles,
       uniquely, level after level. There are no "rogue" tilings outside the substitution
       hierarchy.
     </li>
@@ -133,7 +133,7 @@
       locally.</b> Expand any of the nine metatile types a few levels and it contains
       copies of all nine (the substitution is primitive). Consequently a level-n
       supertile of any type occurs in <i>every</i> tiling, scattered with positive
-      density — and every copy is internally identical. Now take any valid finite figure
+      density, and every copy is internally identical. Now take any valid finite figure
       F: it lives inside some tiling, hence inside (or across a few) supertiles of a
       high enough level; those supertiles recur in every tiling; therefore <b>F occurs in
       every Spectre tiling</b>, repeatedly, with a recurrence distance R that grows only
@@ -146,7 +146,7 @@
       everything.</b> The master patch is a window cut from a real tiling. If its radius
       comfortably exceeds the recurrence distance R for figures of the current size,
       then at least one copy of every valid figure of that size lies wholly inside the
-      window — and the embedding search finds it. The patch is not an enumeration of
+      window, and the embedding search finds it. The patch is not an enumeration of
       tilings; it is a sample large enough that every small legal configuration appears
       in it somewhere.
     </li>
@@ -156,8 +156,8 @@
     <b>patch&nbsp;radius&nbsp;&ge;&nbsp;3&nbsp;&times;&nbsp;figure&nbsp;diameter</b>,
     expanding the patch automatically when a figure approaches the margin.
     <span class="tag unknown">unknown</span> The published quantitative repetitivity
-    constant for Spectre tilings — the exact factor that would make the margin a proven
-    bound rather than a safe engineering choice — is not something we have verified.
+    constant for Spectre tilings (the exact factor that would make the margin a proven
+    bound rather than a safe engineering choice) is not something we have verified.
     If the hard cap on patch size is ever reached (figures thousands of tiles across),
     the app says so on screen instead of silently degrading.
   </p>
@@ -169,11 +169,11 @@
     chosen for simplicity and testability.
   </p>
 
-  <h2>what "worlds" means — and does not mean</h2>
+  <h2>what "worlds" means, and does not mean</h2>
   <p>
     <b>worlds</b> counts the surviving embeddings of your figure into the current master
     patch. Its early collapse is meaningful: each genuinely free choice you make
-    destroys embeddings, and that destruction is the information your figure encodes —
+    destroys embeddings, and that destruction is the information your figure encodes:
     a growing prefix of the tile's hierarchical "address" (which child of which
     supertile of which super-supertile…). A photograph of a figure determines such an
     address prefix; a bigger photograph determines more digits.
@@ -181,11 +181,11 @@
   <p>
     What worlds does <i>not</i> measure: the number of ways your figure can be continued.
     <span class="tag proven">proven</span> Every valid finite figure extends to
-    uncountably many distinct infinite tilings — the choice never runs out, no matter
+    uncountably many distinct infinite tilings. The choice never runs out, no matter
     how much you tile. And because all tilings contain identical copies of every small
     figure, no finite figure ever determines "which" infinite tiling you are in. So
     "worlds&nbsp;=&nbsp;1" late in a long game means your figure's position within the
-    finite patch is pinned — an artifact of the window's size, not a statement that the
+    finite patch is pinned, an artifact of the window's size, not a statement that the
     tiling's future has become forced.
   </p>
 
@@ -209,7 +209,7 @@
       dead-end; random local placements provably do).</li>
     <li>The local matching rule (odd edge to even edge) is implemented independently of
       the patch, and a test asserts guided candidates are always a subset of local ones.</li>
-    <li>The <b>share</b> panel serializes the exact board — tile order and colors —
+    <li>The <b>share</b> panel serializes the exact board (tile order and colors)
       into the URL fragment (deflate + base64url), so a figure is a shareable,
       replayable code; the <b>replay</b> player reads that same order back like sheet
       music.</li>
@@ -221,16 +221,16 @@
       anonymous visit beacons per day. No IP addresses or user agents are logged or
       stored, ever.</li>
     <li>The <b>auto</b> button picks one surviving embedding at random and fills a disc
-      from its outer ring inward — a deliberate cheat that only the hierarchy makes safe.</li>
+      from its outer ring inward, a deliberate cheat that only the hierarchy makes safe.</li>
   </ul>
 
   <hr>
   <h2>references</h2>
   <ul class="refs">
-    <li>D. Smith, J. S. Myers, C. S. Kaplan, C. Goodman-Strauss, <a href="https://arxiv.org/abs/2303.10798">An aperiodic monotile</a> (2023) — the Hat.</li>
-    <li>D. Smith, J. S. Myers, C. S. Kaplan, C. Goodman-Strauss, <a href="https://arxiv.org/abs/2305.17743">A chiral aperiodic monotile</a> (2023) — the Spectre and its substitution system.</li>
+    <li>D. Smith, J. S. Myers, C. S. Kaplan, C. Goodman-Strauss, <a href="https://arxiv.org/abs/2303.10798">An aperiodic monotile</a> (2023). The Hat.</li>
+    <li>D. Smith, J. S. Myers, C. S. Kaplan, C. Goodman-Strauss, <a href="https://arxiv.org/abs/2305.17743">A chiral aperiodic monotile</a> (2023). The Spectre and its substitution system.</li>
     <li>C. S. Kaplan, <a href="https://cs.uwaterloo.ca/~csk/spectre/">the Spectre page</a>.</li>
-    <li>S. Tatham, <a href="https://www.chiark.greenend.org.uk/~sgtatham/quasiblog/aperiodic-spectre/">Combinatorial coordinates for the aperiodic Spectre tiling</a> — the hierarchical addressing scheme.</li>
+    <li>S. Tatham, <a href="https://www.chiark.greenend.org.uk/~sgtatham/quasiblog/aperiodic-spectre/">Combinatorial coordinates for the aperiodic Spectre tiling</a>. The hierarchical addressing scheme.</li>
     <li>On long-range order and quasicrystalline structure of Spectre tilings: <a href="https://arxiv.org/abs/2411.15503">arXiv:2411.15503</a>.</li>
     <li>Substitution rules ported from <a href="https://github.com/reversi-fun/symbolic-spectre-tiles">reversi-fun/symbolic-spectre-tiles</a>, itself a port of the reference implementation.</li>
   </ul>

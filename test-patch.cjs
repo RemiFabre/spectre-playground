@@ -111,7 +111,7 @@ console.log("     index built in " + (Date.now() - t1) + "ms");
   check("worlds collapsed below initial", lastWorlds < index.interior.filter(Boolean).length);
 
   // the grown cluster is hole-free: every internal vertex fully surrounded is hard to
-  // check directly; instead verify via patch membership — all tiles map into the patch
+  // check directly; instead verify via patch membership, all tiles map into the patch
   // under a surviving embedding, and the patch itself is gap-free by construction.
   check("cluster still embeds in master patch", S.computeEmbeddings(index, tiles).length >= 1);
 }
