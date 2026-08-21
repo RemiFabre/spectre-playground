@@ -93,6 +93,59 @@
   #help td:last-child { color: var(--fog); line-height: 1.5; }
   #help .close { margin-top: 16px; font-size: 10.5px; letter-spacing: 0.12em; color: var(--fog); }
 
+  /* replay bar */
+  #player {
+    position: fixed; bottom: 64px; left: 50%; transform: translateX(-50%);
+    display: none; align-items: center; gap: 10px;
+    background: var(--glass); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--hairline); border-radius: 999px; padding: 6px 14px;
+  }
+  #player.open { display: flex; }
+  #player button {
+    appearance: none; border: 0; background: transparent; color: var(--bone);
+    font: 500 12px/1 "Spline Sans Mono", monospace; cursor: pointer; padding: 4px 6px;
+  }
+  #player button:hover { color: #fff; }
+  #p-bar { width: min(320px, 40vw); accent-color: #c9a0ff; }
+  #p-pos { font-size: 11px; color: var(--fog); min-width: 70px; text-align: center; }
+
+  /* popovers (brush + share) */
+  .popover {
+    position: fixed; bottom: 64px; left: 50%; transform: translateX(-50%);
+    display: none; flex-direction: column; gap: 10px;
+    background: #171a26; border: 1px solid var(--hairline); border-radius: 14px;
+    padding: 14px; min-width: 260px; max-width: min(420px, 92vw); z-index: 5;
+  }
+  .popover.open { display: flex; }
+  .swatches { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+  .swatches button {
+    appearance: none; border: 1px solid rgba(255,255,255,0.18); border-radius: 8px;
+    width: 100%; aspect-ratio: 1; cursor: pointer; padding: 0;
+  }
+  .swatches button.on { outline: 2px solid #fff; outline-offset: 2px; }
+  .brush-row { display: flex; gap: 10px; align-items: center; }
+  .brush-row input[type=color] {
+    width: 44px; height: 30px; border: 0; background: transparent; cursor: pointer; padding: 0;
+  }
+  .popover button:not(.swatches button), .pub-row button {
+    appearance: none; border: 1px solid var(--hairline); background: rgba(255,255,255,0.06);
+    color: var(--bone); font: 500 11px/1 "Spline Sans Mono", monospace; letter-spacing: 0.06em;
+    padding: 8px 12px; border-radius: 8px; cursor: pointer;
+  }
+  .popover button:hover { background: rgba(255,255,255,0.12); }
+  .pub-row { display: flex; gap: 8px; }
+  .pub-row input {
+    flex: 1; min-width: 0; background: #0e1019; border: 1px solid var(--hairline); border-radius: 8px;
+    color: var(--bone); font: 400 12px/1.2 "Spline Sans Mono", monospace; padding: 8px 10px;
+  }
+  #s-status { font-size: 11px; color: var(--fog); min-height: 14px; line-height: 1.5; }
+  #s-status a { color: #c9a0ff; }
+  #s-list { display: none; max-height: 220px; overflow-y: auto; flex-direction: column; gap: 2px; }
+  #s-list.open { display: flex; }
+  #s-list button { text-align: left; border: 0; background: transparent; padding: 6px 8px; border-radius: 6px; }
+  #s-list button:hover { background: rgba(255,255,255,0.08); }
+  #b-brush.tinted { box-shadow: inset 0 -3px 0 var(--brush, transparent); }
+
   @media (max-width: 640px) {
     #mark h1 { font-size: 24px; }
     #mark p { font-size: 9.5px; }
@@ -127,12 +180,41 @@
   <button id="b-color" title="colors follow orientation, slowly drifting">color</button>
   <button id="b-white" title="plain porcelain tiles">white</button>
   <span class="sep"></span>
+  <button id="b-brush" title="paint colors: pick a swatch, then click tiles">&#127912;</button>
   <button id="b-auto" title="auto-tile a disc, edges first (guided)">auto</button>
   <button id="b-rot" title="rotate the held piece (or right-drag, or R)">&#10227;</button>
   <button id="b-undo" title="undo (Cmd/Ctrl+Z)">undo</button>
-  <button id="b-save" title="copy a link that replays this exact board">save</button>
+  <button id="b-play" title="replay the whole build, like sheet music">&#9654;</button>
+  <button id="b-share" title="copy a link, publish to the public gallery, or browse it">share</button>
   <button id="b-clear" class="danger" title="start over">clear</button>
   <button id="b-help" title="about &amp; controls">?</button>
+</div>
+
+<div id="player">
+  <button id="p-toggle" title="play / pause">&#9654;</button>
+  <input id="p-bar" type="range" min="0" max="1" step="1" value="0">
+  <span id="p-pos">0 / 0</span>
+  <button id="p-speed" title="playback speed">1&times;</button>
+  <button id="p-close" title="back to building">&#10005;</button>
+</div>
+
+<div id="brush-panel" class="popover">
+  <div class="swatches" id="swatches"></div>
+  <div class="brush-row">
+    <input type="color" id="brush-custom" value="#e8b04b" title="custom color">
+    <button id="brush-auto">auto colors</button>
+  </div>
+</div>
+
+<div id="share-panel" class="popover">
+  <button id="s-link">copy replay link</button>
+  <div class="pub-row">
+    <input id="s-name" type="text" maxlength="40" placeholder="name-your-shape" spellcheck="false">
+    <button id="s-publish">publish</button>
+  </div>
+  <div id="s-status"></div>
+  <button id="s-browse">browse the public gallery</button>
+  <div id="s-list"></div>
 </div>
 
 <div id="help">
@@ -162,10 +244,12 @@
       <tr><td>paint</td><td>in guided mode, hold the button and sweep: every valid tile along your path is placed for you</td></tr>
       <tr><td>rotate</td><td>right-drag, quick right-click, R, or the &#10227; button</td></tr>
       <tr><td>erase</td><td>switch to erase, then click tiles</td></tr>
+      <tr><td>colors</td><td>&#127912; picks a brush: new tiles take that color, clicking a tile repaints it; "auto colors" returns to the palette</td></tr>
       <tr><td>pan / zoom</td><td>middle-drag (one-finger drag on touch) / scroll to zoom</td></tr>
       <tr><td>undo</td><td>Cmd/Ctrl+Z</td></tr>
       <tr><td>auto</td><td>tiles a disc around your patch by itself — outside edge first, then inward</td></tr>
-      <tr><td>save</td><td>copies a link encoding this exact board, to share or keep</td></tr>
+      <tr><td>replay</td><td>&#9654; plays your build back like sheet music — loops, scrubbable; click while paused to keep building from that moment</td></tr>
+      <tr><td>share</td><td>copy a replay link, publish your shape by name to the public gallery, or browse and load anyone's</td></tr>
     </table>
     <p class="close">click anywhere to close</p>
   </div>
@@ -206,7 +290,11 @@
     view: { scale: 78, ox: 0, oy: 0 },
     undo: [],
     placedEver: 0,
+    brush: null,          // color string, or null = palette-driven colors
   };
+  const player = { open: false, playing: false, pos: 0, speed: 1, lastVis: -1 };
+  const INGEST = "https://remifabre-spectre-ingest.hf.space";
+  const DATASET = "RemiFabre/spectre-shapes";
   const ghost = {
     sx: innerWidth / 2, sy: innerHeight / 2,
     x: 0, y: 0, angle: 0, manualAngle: 0,
@@ -215,6 +303,7 @@
   const pulses = [];
   const cluster = { cx: 0, cy: 0, r: 2, minx: -3, miny: -3, maxx: 3, maxy: 3 };
   let unionPath = null;
+  let playerUnion = null;
   let eraseHover = -1;
   let dirtySave = false;
   let auto = null; // {queue, timer}
@@ -241,17 +330,19 @@
   }
 
   // ---- persistence + share codes -------------------------------------------
+  function tileTuple(t, scaled) {
+    const f = scaled ? 1000 : 1;
+    const e = [t.k, scaled ? Math.round(t.x * f) : t.x, scaled ? Math.round(t.y * f) : t.y];
+    if (t.fill) e.push(t.fill);
+    return e;
+  }
   function boardJSON() {
-    return JSON.stringify({
-      v: 1,
-      t: state.tiles.map((t) => [t.k, Math.round(t.x * 1000), Math.round(t.y * 1000)]),
-      p: state.palette,
-    });
+    return JSON.stringify({ v: 2, t: state.tiles.map((t) => tileTuple(t, true)), p: state.palette });
   }
   function save() {
     try {
       localStorage.setItem("spectre-v2", JSON.stringify({
-        tiles: state.tiles.map((t) => [t.k, t.x, t.y]),
+        tiles: state.tiles.map((t) => tileTuple(t, false)),
         mode: state.mode, palette: state.palette, view: state.view,
         placedEver: state.placedEver,
       }));
@@ -261,7 +352,7 @@
     try {
       const d = JSON.parse(localStorage.getItem("spectre-v2"));
       if (d && Array.isArray(d.tiles) && d.tiles.length) {
-        for (const [k, x, y] of d.tiles) addTileRaw({ k, x, y });
+        for (const [k, x, y, fill] of d.tiles) addTileRaw({ k, x, y, fill });
         state.mode = ["guided", "local", "free"].includes(d.mode) ? d.mode : "guided";
         state.palette = ["prisma", "color", "white"].includes(d.palette) ? d.palette : "prisma";
         state.placedEver = d.placedEver || d.tiles.length;
@@ -305,7 +396,11 @@
     t.path = p;
     return t;
   }
-  function addTileRaw(t) { state.tiles.push(buildTile({ k: t.k, x: t.x, y: t.y, born: 0 })); }
+  function addTileRaw(t) {
+    const built = buildTile({ k: t.k, x: t.x, y: t.y, born: 0 });
+    if (t.fill) built.fill = t.fill;
+    state.tiles.push(built);
+  }
 
   function plainTiles() { return state.tiles.map((t) => ({ k: t.k, x: t.x, y: t.y })); }
 
@@ -313,6 +408,7 @@
     const t = buildTile({ k: cand.k, x: cand.x, y: cand.y, born: performance.now() });
     if (cand.hue !== undefined) t.hue = cand.hue; // optional per-tile color override
     if (cand.fill) t.fill = cand.fill;
+    else if (state.brush) t.fill = state.brush;
     state.tiles.push(t);
     state.undo.push({ type: "add" });
     state.placedEver++;
@@ -327,7 +423,7 @@
   }
   function removeTileAt(i) {
     const [t] = state.tiles.splice(i, 1);
-    state.undo.push({ type: "remove", tile: { k: t.k, x: t.x, y: t.y }, index: i });
+    state.undo.push({ type: "remove", tile: { k: t.k, x: t.x, y: t.y, fill: t.fill }, index: i });
     state.embeddings = state.tiles.length ? S.computeEmbeddings(INDEX, plainTiles()) : null;
     refresh();
   }
@@ -439,14 +535,14 @@
   }
 
   // one flowing field painted through all tiles at once
-  function drawPrisma(now) {
-    if (!state.tiles.length || !unionPath) return;
+  function drawPrisma(now, clipPath) {
+    if (!state.tiles.length || !clipPath) return;
     const t = reduceMotion ? 0 : now / 1000;
     const R = Math.max(cluster.r * 1.15, 6);
     const bx = cluster.minx - R, by = cluster.miny - R;
     const bw = (cluster.maxx - cluster.minx) + 2 * R, bh = (cluster.maxy - cluster.miny) + 2 * R;
     ctx.save();
-    ctx.clip(unionPath);
+    ctx.clip(clipPath);
     ctx.fillStyle = "#0a0c15";
     ctx.fillRect(bx, by, bw, bh);
     // three fixed color anchors blending across the tiles; hues drift slowly,
@@ -518,10 +614,32 @@
     const grout = Math.max(1.4 / scale, 0.028);
     const prisma = state.palette === "prisma";
 
+    // replay: reveal the first `vis` tiles of the score
+    let vis = state.tiles.length;
+    if (player.open) {
+      if (player.playing) {
+        player.pos += dt * 8 * player.speed;
+        if (player.pos >= state.tiles.length + 10) player.pos = 0; // loop with a beat of hold
+      }
+      vis = Math.max(0, Math.min(state.tiles.length, Math.floor(player.pos)));
+      if (vis !== player.lastVis) {
+        if (player.playing && vis === player.lastVis + 1 && vis > 0) {
+          const t = state.tiles[vis - 1];
+          t.born = now;
+          const c = S.tileCentroid(t);
+          pulses.push({ x: c[0], y: c[1], t0: now });
+        }
+        player.lastVis = vis;
+        playerUnion = new Path2D();
+        for (let i = 0; i < vis; i++) playerUnion.addPath(state.tiles[i].path);
+        playerSync();
+      }
+    }
+
     if (prisma) {
-      drawPrisma(now);
+      drawPrisma(now, player.open ? playerUnion : unionPath);
       // per-tile identity: orientation shimmer + grout on top of the field
-      for (let i = 0; i < state.tiles.length; i++) {
+      for (let i = 0; i < vis; i++) {
         const t = state.tiles[i];
         const hue = (t.k * 30 + (reduceMotion ? 0 : now / 333)) % 360;
         ctx.fillStyle = "hsla(" + hue + ", 85%, 62%, 0.12)";
@@ -535,7 +653,7 @@
         }
       }
     } else {
-      for (let i = 0; i < state.tiles.length; i++) {
+      for (let i = 0; i < vis; i++) {
         const t = state.tiles[i];
         const age = t.born ? (now - t.born) / 180 : 1;
         let popped = false;
@@ -571,8 +689,8 @@
       ctx.stroke();
     }
 
-    // ghost + candidates (add tool only, not during auto)
-    if (state.tool === "add" && ghost.visible && !auto) {
+    // ghost + candidates (add tool only, not during auto or replay)
+    if (state.tool === "add" && ghost.visible && !auto && !player.open) {
       const [wx, wy] = toWorld(ghost.sx, ghost.sy);
       const usesCands = state.mode !== "free" && state.tiles.length > 0;
 
@@ -816,10 +934,37 @@
     ghost.sx = e.clientX; ghost.sy = e.clientY;
     const [wx, wy] = toWorld(e.clientX, e.clientY);
 
+    // replay: a click pauses; a click while paused adopts this moment and resumes building
+    if (player.open) {
+      if (player.playing) { player.playing = false; playerSync(); return; }
+      const keep = Math.max(0, Math.min(state.tiles.length, Math.floor(player.pos)));
+      if (keep < state.tiles.length) {
+        state.tiles.length = keep;
+        state.undo.length = 0;
+        state.embeddings = state.tiles.length ? S.computeEmbeddings(INDEX, plainTiles()) : null;
+      }
+      closePlayer();
+      refresh();
+      setHint("continuing from here — the rest of the score was dropped", 3500);
+      return;
+    }
+
     if (state.tool === "erase") {
       const i = hitTile(wx, wy);
       if (i >= 0) { removeTileAt(i); eraseHover = -1; }
       return;
+    }
+
+    // brush: clicking an existing tile repaints it
+    if (state.brush && state.tool === "add") {
+      const hit = hitTile(wx, wy);
+      if (hit >= 0) {
+        const t = state.tiles[hit];
+        state.undo.push({ type: "recolor", index: hit, prev: t.fill || null });
+        t.fill = state.brush;
+        dirtySave = true;
+        return;
+      }
     }
 
     if (state.mode !== "free") {
@@ -887,7 +1032,7 @@
     setSeg([["b-prisma", "prisma"], ["b-color", "color"], ["b-white", "white"]], state.palette);
     document.body.classList.toggle("erasing", state.tool === "erase");
   }
-  function setMode(m) { stopAuto(false); state.mode = m; refresh(); syncBar(); }
+  function setMode(m) { stopAuto(false); closePlayer(); state.mode = m; refresh(); syncBar(); }
   $("b-guided").onclick = () => setMode("guided");
   $("b-local").onclick = () => setMode("local");
   $("b-free").onclick = () => setMode("free");
@@ -902,17 +1047,153 @@
   $("b-help").onclick = () => helpEl.classList.add("open");
   helpEl.onclick = (e) => { if (e.target === helpEl || e.target.closest(".close")) helpEl.classList.remove("open"); };
 
-  $("b-save").onclick = async () => {
+  // ---- replay player --------------------------------------------------------
+  const playerEl = $("player"), pBar = $("p-bar"), pPos = $("p-pos"), pToggle = $("p-toggle");
+  function playerSync() {
+    const n = state.tiles.length;
+    pBar.max = n;
+    pBar.value = Math.min(n, Math.floor(player.pos));
+    pPos.textContent = Math.min(n, Math.floor(player.pos)) + " / " + n;
+    pToggle.innerHTML = player.playing ? "&#9208;" : "&#9654;";
+  }
+  function openPlayer() {
+    if (!state.tiles.length) { setHint("nothing to replay yet — place some tiles first", 3000); return; }
+    stopAuto(false);
+    closePopovers();
+    player.open = true; player.playing = true; player.pos = 0; player.lastVis = -1;
+    playerEl.classList.add("open");
+    playerSync();
+  }
+  function closePlayer() {
+    if (!player.open) return;
+    player.open = false; player.playing = false; player.lastVis = -1;
+    playerEl.classList.remove("open");
+  }
+  $("b-play").onclick = () => { player.open ? closePlayer() : openPlayer(); };
+  pToggle.onclick = () => {
+    if (player.pos >= state.tiles.length) player.pos = 0;
+    player.playing = !player.playing;
+    playerSync();
+  };
+  pBar.oninput = () => { player.playing = false; player.pos = +pBar.value; playerSync(); };
+  $("p-speed").onclick = () => {
+    const speeds = [0.5, 1, 2, 4];
+    player.speed = speeds[(speeds.indexOf(player.speed) + 1) % speeds.length];
+    $("p-speed").textContent = player.speed + "×";
+  };
+  $("p-close").onclick = closePlayer;
+
+  // ---- popovers (brush + share) --------------------------------------------
+  const brushPanel = $("brush-panel"), sharePanel = $("share-panel");
+  function closePopovers() { brushPanel.classList.remove("open"); sharePanel.classList.remove("open"); }
+  canvas.addEventListener("pointerdown", closePopovers);
+
+  const SWATCHES = ["#e8b04b", "#d96c4f", "#c9508a", "#8f5fd6", "#4f6fd9", "#3fa7c4", "#3fbf8f",
+    "#a7c94f", "#f2efe7", "#8a8fa3", "#2c3350", "#11141f"];
+  const swWrap = $("swatches");
+  for (const c of SWATCHES) {
+    const b = document.createElement("button");
+    b.style.background = c;
+    b.title = c;
+    b.onclick = () => setBrush(c);
+    swWrap.appendChild(b);
+  }
+  function setBrush(c) {
+    state.brush = c;
+    const bb = $("b-brush");
+    bb.classList.toggle("tinted", !!c);
+    bb.style.setProperty("--brush", c || "transparent");
+    for (const b of swWrap.children) b.classList.toggle("on", b.title === c);
+    if (c) setHint("brush on — new tiles take this color; click a tile to repaint it", 3500);
+  }
+  $("brush-custom").oninput = (e) => setBrush(e.target.value);
+  $("brush-auto").onclick = () => { setBrush(null); setHint("brush off — colors follow the palette again", 2500); };
+  $("b-brush").onclick = () => {
+    const was = brushPanel.classList.contains("open");
+    closePopovers();
+    if (!was) brushPanel.classList.add("open");
+  };
+
+  // ---- share: link, publish, browse ----------------------------------------
+  const sStatus = $("s-status");
+  $("b-share").onclick = () => {
+    const was = sharePanel.classList.contains("open");
+    closePopovers();
+    if (!was) { sharePanel.classList.add("open"); sStatus.textContent = ""; }
+  };
+  $("s-link").onclick = async () => {
     try {
       const code = await encodeBoard();
       const url = location.origin + location.pathname + "#b=" + code;
       history.replaceState(null, "", "#b=" + code);
-      let copied = false;
-      try { await navigator.clipboard.writeText(url); copied = true; } catch (err) {}
-      setHint(copied ? "link copied — it replays this exact board" : "board encoded in the address bar — copy the URL", 5000);
-    } catch (err) {
-      setHint("could not encode the board", 4000);
+      try { await navigator.clipboard.writeText(url); sStatus.textContent = "link copied — it replays this exact board"; }
+      catch (err) { sStatus.textContent = "board encoded in the address bar — copy the URL"; }
+    } catch (err) { sStatus.textContent = "could not encode the board"; }
+  };
+  $("s-publish").onclick = async () => {
+    const name = $("s-name").value.trim().toLowerCase();
+    if (!/^[a-z0-9][a-z0-9-]{2,39}$/.test(name)) {
+      sStatus.textContent = "names: 3-40 chars, lowercase letters, digits, dashes";
+      return;
     }
+    if (!state.tiles.length) { sStatus.textContent = "nothing to publish yet"; return; }
+    const btn = $("s-publish");
+    btn.disabled = true;
+    const body = JSON.stringify({ name, board: JSON.parse(boardJSON()) });
+    let published = false;
+    for (let attempt = 0; attempt < 5 && !published; attempt++) {
+      sStatus.textContent = attempt === 0 ? "publishing…" : "waking the archive… (try " + (attempt + 1) + "/5)";
+      try {
+        const r = await fetch(INGEST + "/save", { method: "POST", body, signal: AbortSignal.timeout(12000) });
+        const d = await r.json().catch(() => ({}));
+        if (r.ok && d.ok) {
+          sStatus.innerHTML = "published — anyone can load “" + name + "” from the gallery · <a href=\"https://huggingface.co/datasets/" + DATASET + "\" target=\"_blank\" rel=\"noopener\">dataset</a>";
+          published = true;
+        } else if (r.status === 409) { sStatus.textContent = "that name is already taken — pick another"; break; }
+        else if (r.status === 400) { sStatus.textContent = "the archive refused this board (" + (d.reason || "invalid") + ")"; break; }
+        else if (r.status === 429) { sStatus.textContent = "the archive is busy — try again in a few minutes"; break; }
+        else throw new Error("retry");
+      } catch (err) {
+        if (attempt === 4) sStatus.textContent = "could not reach the archive — try again later";
+        else await new Promise((ok) => setTimeout(ok, 6000));
+      }
+    }
+    btn.disabled = false;
+  };
+  $("s-browse").onclick = async () => {
+    const list = $("s-list");
+    list.classList.add("open");
+    list.textContent = "loading…";
+    try {
+      const r = await fetch("https://huggingface.co/api/datasets/" + DATASET + "/tree/main/shapes");
+      if (r.status === 404) { list.textContent = "no shapes published yet — be the first"; return; }
+      const files = await r.json();
+      const names = files.map((f) => (/^shapes\/(.+)\.json$/.exec(f.path) || [])[1]).filter(Boolean).sort();
+      list.textContent = "";
+      if (!names.length) { list.textContent = "no shapes published yet — be the first"; return; }
+      for (const n of names) {
+        const b = document.createElement("button");
+        b.textContent = n;
+        b.onclick = async () => {
+          if (b.dataset.armed !== "1") {
+            for (const o of list.children) { o.dataset.armed = ""; o.textContent = o.dataset.name || o.textContent; }
+            b.dataset.name = n; b.dataset.armed = "1"; b.textContent = n + " — load? (replaces your board)";
+            return;
+          }
+          try {
+            const rr = await fetch("https://huggingface.co/datasets/" + DATASET + "/resolve/main/shapes/" + n + ".json");
+            const d = await rr.json();
+            state.tiles.length = 0; state.undo.length = 0; pulses.length = 0;
+            for (const [k, x, y, fill] of d.board.t) addTileRaw({ k, x: x / 1000, y: y / 1000, fill });
+            if (["prisma", "color", "white"].includes(d.board.p)) state.palette = d.board.p;
+            state.embeddings = state.tiles.length ? S.computeEmbeddings(INDEX, plainTiles()) : null;
+            refresh(); centerView(); syncBar(); closePopovers();
+            setHint("loaded “" + n + "” — press ▶ to watch it being built", 5000);
+          } catch (err) { sStatus.textContent = "could not load that shape"; }
+        };
+        list.appendChild(b);
+      }
+    } catch (err) { list.textContent = "could not reach the gallery"; }
   };
 
   let clearArm = 0;
@@ -920,6 +1201,7 @@
     const now = performance.now();
     if (now - clearArm < 2500) {
       stopAuto(false);
+      closePlayer();
       state.tiles = []; state.undo = []; state.embeddings = null; pulses.length = 0;
       history.replaceState(null, "", location.pathname);
       seed(); refresh(); centerView();
@@ -934,10 +1216,21 @@
 
   function doUndo() {
     stopAuto(false);
+    if (player.open) closePlayer();
     const u = state.undo.pop();
     if (!u) return;
+    if (u.type === "recolor") {
+      const t = state.tiles[u.index];
+      if (t) t.fill = u.prev || undefined;
+      dirtySave = true;
+      return;
+    }
     if (u.type === "add") state.tiles.pop();
-    else state.tiles.splice(u.index, 0, buildTile({ k: u.tile.k, x: u.tile.x, y: u.tile.y, born: 0 }));
+    else {
+      const back = buildTile({ k: u.tile.k, x: u.tile.x, y: u.tile.y, born: 0 });
+      if (u.tile.fill) back.fill = u.tile.fill;
+      state.tiles.splice(u.index, 0, back);
+    }
     state.embeddings = state.tiles.length ? S.computeEmbeddings(INDEX, plainTiles()) : null;
     refresh();
   }
@@ -960,7 +1253,7 @@
   function seed() { addTileRaw({ k: 0, x: 0, y: 0 }); }
   // debug/testing hook (INDEX/PATCH are swapped on expansion, hence getters)
   window.__spectre = {
-    state, ghost, toWorld, startAuto, stopAuto, ensureCapacity, commitTile,
+    state, ghost, toWorld, startAuto, stopAuto, ensureCapacity, commitTile, player,
     get INDEX() { return INDEX; }, get PATCH() { return PATCH; },
     get PATCH_RADIUS() { return PATCH_RADIUS; },
   };
@@ -972,7 +1265,7 @@
     if (m) {
       try {
         const d = await decodeBoard(m[1]);
-        for (const [k, x, y] of d.t) addTileRaw({ k, x: x / 1000, y: y / 1000 });
+        for (const [k, x, y, fill] of d.t) addTileRaw({ k, x: x / 1000, y: y / 1000, fill });
         if (["prisma", "color", "white"].includes(d.p)) state.palette = d.p;
         state.placedEver = d.t.length;
         loaded = state.tiles.length > 0;
@@ -985,6 +1278,13 @@
     syncBar();
     refresh();
     requestAnimationFrame(frame);
+    // one anonymous visit beacon per session; the counter stores no IPs, ever
+    try {
+      if (location.hostname.endsWith("hf.space") && !sessionStorage.getItem("spectre-visited")) {
+        sessionStorage.setItem("spectre-visited", "1");
+        navigator.sendBeacon && navigator.sendBeacon(INGEST + "/visit");
+      }
+    } catch (e) {}
   })();
 })();
 </script>

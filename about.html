@@ -209,8 +209,17 @@
       dead-end; random local placements provably do).</li>
     <li>The local matching rule (odd edge to even edge) is implemented independently of
       the patch, and a test asserts guided candidates are always a subset of local ones.</li>
-    <li>The <b>save</b> button serializes the exact board into the URL fragment
-      (deflate + base64url), so a figure is a shareable, replayable code.</li>
+    <li>The <b>share</b> panel serializes the exact board — tile order and colors —
+      into the URL fragment (deflate + base64url), so a figure is a shareable,
+      replayable code; the <b>replay</b> player reads that same order back like sheet
+      music.</li>
+    <li>Publishing sends the board to a small companion Space
+      (<a href="https://huggingface.co/spaces/RemiFabre/spectre-ingest">spectre-ingest</a>)
+      that validates it and commits it under its chosen name to the public dataset
+      <a href="https://huggingface.co/datasets/RemiFabre/spectre-shapes">spectre-shapes</a>;
+      browsing and loading go straight to the dataset. The same companion tallies
+      anonymous visit beacons per day. No IP addresses or user agents are logged or
+      stored, ever.</li>
     <li>The <b>auto</b> button picks one surviving embedding at random and fills a disc
       from its outer ring inward — a deliberate cheat that only the hierarchy makes safe.</li>
   </ul>
