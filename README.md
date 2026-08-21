@@ -13,23 +13,22 @@ yet never repeats.
 
 ## What it does
 
-You always hold a ghost tile. Move it near the edge of your figure and it snaps,
-magnet-like, to valid positions. Click to place. Hold the button and sweep to paint
-whole strokes of tiles. Three placement modes:
+You always hold a ghost tile. It snaps to valid positions, click to place, hold and
+sweep to paint whole strokes. Three placement modes:
 
-- **guided** (default): only offers placements that provably extend to a perfect,
-  hole-free tiling of the plane. You can never paint yourself into a corner.
-- **local**: offers anything that fits its immediate neighbours (edge-to-edge,
-  bump-into-dent, no overlaps). Locally fine choices can still doom the tiling,
-  and the on-screen **worlds** counter shows the exact moment that happens.
-- **free**: stamp anywhere, no rules.
+- **guided** (default): only offers placements that extend to a perfect tiling.
+- **local**: any edge-to-edge fit (**worlds** hits zero if a perfect tiling is no
+  longer possible).
+- **free**: stamp anywhere.
 
-Plus: an **auto** button that tiles a disc by itself (outer ring first, then inward),
-a color **brush** (new tiles take your color, clicking a tile repaints it), a
-**replay** player that plays any board back like sheet music (looping, scrubbable,
-and you can stop it anywhere and keep building from that moment), and a **share**
-panel to copy a replay link or publish your shape by name to a public gallery that
-anyone can browse and load.
+Also:
+
+- **auto**: tiles a disc by itself, outer ring first.
+- **brush**: pick a color, new tiles take it, click a tile to repaint it.
+- **replay**: plays any board back like sheet music (loops, scrubbable, continue
+  building from any point).
+- **share**: copy a replay link, or publish your shape by name to a public gallery
+  anyone can browse and load.
 
 <p align="center">
   <img src="media/F1-ocean.gif" width="280" alt="Ocean colorway">
@@ -46,8 +45,8 @@ still embeds into it. A placement is offered exactly when at least one embedding
 survives it; the surviving count is the **worlds** number on screen. The patch grows
 automatically as your figure grows, keeping a safety margin.
 
-The full argument (with each claim labelled proven, confident, heuristic, or
-unknown) is on the site's [about page](https://remifabre-spectre-playground.static.hf.space/about.html).
+The full argument, with each claim labelled proven, confident, heuristic, or
+unknown, is on the [about page](https://remifabre-spectre-playground.static.hf.space/about.html).
 If you spot an error in it, please open an issue.
 
 ## The public gallery
