@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js"}}</script>
+<style>body{margin:0;background:#12151f}</style>
+</head><body>
+<script src="./spectre-core.js"></script>
+<script type="module">
+import * as THREE from "three";
+const S = window.SpectreCore;
+window.__ready = false;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color("#12151f");
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(900, 900);
+document.body.appendChild(renderer.domElement);
+const camera = new THREE.PerspectiveCamera(25, 1, 0.1, 800);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+sun.position.set(25, 35, 50);
+scene.add(sun);
+const sun2 = new THREE.DirectionalLight(0xffffff, 1.1);
+sun2.position.set(-20, -30, -45); // so the underside mountain is lit too
+scene.add(sun2);
+
+const boardFile = new URLSearchParams(location.search).get("board") || "tower-board.json";
+const board = await (await fetch("./" + boardFile)).json();
+// entries: [k, x*1000, y*1000, fillTop, height, fillBottom?]
+const tiles = board.board.t.map(([k, x, y, fill, h, fillB]) => ({ k, x: x / 1000, y: y / 1000, fill, h: h || 0.35, fillB }));
+
+function tileShape(t) {
+  const verts = S.tileVerts(t);
+  const segs = S.curvedPath(verts);
+  const sh = new THREE.Shape();
+  sh.moveTo(segs[0].x0, -segs[0].y0);
+  for (const g of segs) sh.bezierCurveTo(g.c1x, -g.c1y, g.c2x, -g.c2y, g.x1, -g.y1);
+  return sh;
+}
+function matsFor(fill) {
+  if (fill === "#0a0c12") return new THREE.MeshStandardMaterial({ color: "#0a0c12", roughness: 0.55, metalness: 0.25 });
+  const top = new THREE.MeshBasicMaterial();
+  top.color.setStyle(fill || "#888");
+  const side = new THREE.MeshBasicMaterial();
+  side.color.setStyle(fill || "#888");
+  side.color.multiplyScalar(0.55);
+  return [top, side];
+}
+const tileGroups = [];
+for (const t of tiles) {
+  const grp = new THREE.Group();
+  scene.add(grp);
+  tileGroups.push(grp);
+  const shape = tileShape(t);
+  grp.add(new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: t.h, bevelEnabled: false }), matsFor(t.fill)));
+  const outline = S.sampleCurved(S.tileVerts(t), 8);
+  grp.add(new THREE.LineLoop(
+    new THREE.BufferGeometry().setFromPoints(outline.map(([x, y]) => new THREE.Vector3(x, -y, t.h + 0.02))),
+    new THREE.LineBasicMaterial({ color: 0x0d0f17 })));
+  if (t.fillB) { // the mirrored world hanging below: its SIDES wear the top color,
+    // so nothing gives the second world away until the camera goes underneath
+    let mats;
+    if (t.fillB === "#0a0c12") {
+      mats = matsFor("#0a0c12");
+    } else {
+      const caps = new THREE.MeshBasicMaterial();
+      caps.color.setStyle(t.fillB);
+      const side = new THREE.MeshBasicMaterial();
+      side.color.setStyle(t.fill === "#0a0c12" ? "#0a0c12" : (t.fill || "#888"));
+      side.color.multiplyScalar(0.55);
+      mats = [caps, side];
+    }
+    const mB = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: t.h, bevelEnabled: false }), mats);
+    mB.position.z = -t.h;
+    grp.add(mB);
+    grp.add(new THREE.LineLoop(
+      new THREE.BufferGeometry().setFromPoints(outline.map(([x, y]) => new THREE.Vector3(x, -y, -t.h - 0.02))),
+      new THREE.LineBasicMaterial({ color: 0x0d0f17 })));
+  }
+}
+let lastCam = [0, 0, 100];
+window.__reveal = (n) => window.__window(0, n);
+window.__window = (a, b) => {
+  for (let i = 0; i < tileGroups.length; i++) tileGroups[i].visible = i >= a && i < b;
+  window.__setCam(...lastCam);
+};
+
+// camera rig: orbit spins about the vertical axis, tilt swings the whole orbit
+// plane; tilt 0 is the top-down view, tilt 180 looks straight up from below.
+const rig = new THREE.Group();
+const tiltG = new THREE.Group();
+scene.add(rig);
+rig.add(tiltG);
+tiltG.add(camera);
+window.__setCam = (tiltDeg, orbitDeg, dist, fov) => {
+  lastCam = [tiltDeg, orbitDeg, dist, fov];
+  if (fov && fov !== camera.fov) { camera.fov = fov; camera.updateProjectionMatrix(); }
+  camera.position.set(0, 0, dist);
+  camera.rotation.set(0, 0, 0);
+  rig.rotation.z = (orbitDeg * Math.PI) / 180;
+  tiltG.rotation.x = (tiltDeg * Math.PI) / 180;
+  renderer.render(scene, camera);
+};
+window.__setCam(0, 0, 100);
+window.__ready = true;
+</script></body></html>
